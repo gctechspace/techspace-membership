@@ -1,0 +1,114 @@
+.dtbaker_cafe_menu_buttons {
+  text-align: center;
+  padding: 20px 0 40px;
+}
+.dtbaker_cafe_menu_buttons .menu_button {
+  display: inline-block;
+  margin: 5px 10px;
+}
+.dtbaker_cafe_menu_buttons .menu_button a {
+  display: inline-block;
+  padding: 11px 20px 6px;
+  font-size: 20px;
+}
+.dtbaker_cafe_category .dtbaker_cafe_header {
+  text-align: center;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  position: relative;
+  padding: 10px;
+}
+.dtbaker_cafe_category .dtbaker_cafe_header .dtbaker_cafe_header_wrap {
+  border: 1px solid rgba(255, 255, 255, 0.39);
+  min-height: 140px;
+  overflow: hidden;
+}
+.dtbaker_cafe_category .dtbaker_cafe_header .dtbaker_cafe_header_wrap h3 {
+  padding: 60px 0;
+  margin: 0;
+  font-size: 2.6em;
+  display: inline-block;
+  position: relative;
+}
+.dtbaker_cafe_category .dtbaker_cafe_header .dtbaker_cafe_header_wrap h3:before,
+.dtbaker_cafe_category .dtbaker_cafe_header .dtbaker_cafe_header_wrap h3:after {
+  content: '';
+  position: absolute;
+  width: 1000px;
+  top: 66px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.39);
+  border-top: 1px solid rgba(255, 255, 255, 0.39);
+  height: 3px;
+}
+.dtbaker_cafe_category .dtbaker_cafe_header .dtbaker_cafe_header_wrap h3:before {
+  right: 113%;
+}
+.dtbaker_cafe_category .dtbaker_cafe_header .dtbaker_cafe_header_wrap h3:after {
+  left: 113%;
+}
+.dtbaker_cafe_category .dtbaker_cafe_header .dtbaker_cafe_header_wrap div {
+  position: absolute;
+  bottom: 30px;
+  width: 100%;
+  text-align: center;
+  font-weight: bold;
+  font-size: 1.2em;
+}
+.dtbaker_cafe_category .dtbaker_cafe_items ul {
+  margin: 0;
+  padding: 41px 0;
+  clear: both;
+}
+.dtbaker_cafe_category .dtbaker_cafe_items ul:after {
+  content: '';
+  display: table;
+  clear: both;
+}
+.dtbaker_cafe_category .dtbaker_cafe_items ul li {
+  list-style: none;
+  margin: 0;
+  padding: 10px 0;
+  float: left;
+  width: 48%;
+  clear: left;
+}
+@media only screen and (max-device-width: 480px) and (orientation: portrait) {
+  .responsive_enabled .dtbaker_cafe_category .dtbaker_cafe_items ul li {
+    width: 100%;
+  }
+}
+.dtbaker_cafe_category .dtbaker_cafe_items ul li:nth-child(even) {
+  float: right;
+  clear: right;
+}
+.dtbaker_cafe_category .dtbaker_cafe_items ul li .menu_item_title {
+  display: table;
+}
+.dtbaker_cafe_category .dtbaker_cafe_items ul li .menu_item_title div {
+  display: table-cell;
+  white-space: nowrap;
+  padding: 3px 0;
+}
+.dtbaker_cafe_category .dtbaker_cafe_items ul li .menu_item_title .item_name,
+.dtbaker_cafe_category .dtbaker_cafe_items ul li .menu_item_title .item_price {
+  width: 5%;
+  font-weight: bold;
+  font-size: 1.3em;
+}
+.dtbaker_cafe_category .dtbaker_cafe_items ul li .menu_item_title .item_space {
+  padding: 3px 5px;
+  position: relative;
+}
+.dtbaker_cafe_category .dtbaker_cafe_items ul li .menu_item_title .item_space:after {
+  content: '';
+  position: absolute;
+  bottom: 7px;
+  left: 10px;
+  right: 10px;
+  height: 1px;
+}
+.dtbaker_cafe_category .dtbaker_cafe_items ul li .menu_item_description {
+  font-size: 0.9em;
+  margin-right: 30px;
+}
