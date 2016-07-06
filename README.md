@@ -19,4 +19,6 @@ coming soon
 
 ## API Access:
 
-Details on how to query the membership database via the WordPress API: coming soon
+Details on how to query the membership database via the WordPress API:
+
+Note: if you get 404 trying to access API, go to Settings > Permalinks in WordPress and click the save button. This clears the URL rewrite cache.

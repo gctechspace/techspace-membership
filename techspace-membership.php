@@ -35,6 +35,8 @@ class DtbakerMembershipManager {
 		add_action( 'wp_enqueue_scripts', array( $this, 'frontend_css' ) );
 		add_filter( 'manage_dtbaker_membership_posts_columns', array( $this, 'manage_dtbaker_membership_posts_columns' ) );
 		add_action( 'manage_dtbaker_membership_posts_custom_column' , array( $this, 'manage_dtbaker_membership_posts_custom_column' ), 10, 2 );
+		add_filter( 'manage_dtbaker_rfid_posts_columns', array( $this, 'manage_dtbaker_rfid_posts_columns' ) );
+		add_action( 'manage_dtbaker_rfid_posts_custom_column' , array( $this, 'manage_dtbaker_rfid_posts_custom_column' ), 10, 2 );
 		add_action( 'admin_menu', array( $this, 'admin_menu' ) );
 
 		$this->membership_detail_fields = apply_filters('dtbaker_membership_detail_fields', array(
@@ -99,14 +101,15 @@ class DtbakerMembershipManager {
 	}
 
 	public function manage_dtbaker_membership_posts_custom_column( $column, $post_id ){
-		$membership_details = get_post_meta( $post_id, 'membership_details', true );
-		if( !$membership_details || !is_array($membership_details) ){
-			$membership_details = array();
-		}
+		$membership_details = $this->get_member_details($post_id);
 		switch($column){
 			case 'rfid':
 				// obfuscate RFID key a bit:
-				echo isset($membership_details['rfid']) ? str_pad(substr($membership_details['rfid'],0,5), strlen($membership_details['rfid']), '*', STR_PAD_RIGHT) : 'N/A';
+				if(!empty($membership_details['rfid'])){
+					$rfid = get_post($membership_details['rfid']);
+					$rfid_code = $rfid->post_title;
+					echo str_pad(substr($rfid_code,0,5), strlen($rfid_code), '*', STR_PAD_RIGHT);
+				}
 				break;
 			case 'xero_id':
 				if(!empty($membership_details['xero_cache'])){
@@ -121,6 +124,26 @@ class DtbakerMembershipManager {
 				break;
 			case 'membership_expiry':
 				echo date('Y-m-d');
+
+		}
+	}
+
+	public function manage_dtbaker_rfid_posts_columns( $columns ){
+		unset( $columns['author'] );
+		unset( $columns['date'] );
+		$columns['member_id'] = __( 'Member' );
+		$columns['status'] = __( 'Status' );
+		return $columns;
+	}
+
+	public function manage_dtbaker_rfid_posts_custom_column( $column, $post_id ){
+		switch($column){
+			case 'member_id':
+				echo 'member';
+				break;
+			case 'status':
+				echo 'status';
+				break;
 
 		}
 	}
@@ -265,19 +288,27 @@ class DtbakerMembershipManager {
 		return $all_contacts;
 	}
 
+	public function get_member_details($post_id){
+		$membership_details = array();
+		foreach($this->membership_detail_fields as $key=>$val){
+			$membership_details[$key] = get_post_meta( $post_id, 'membership_details_'.$key, true );
+		}
+		$membership_details['xero_cache'] = get_post_meta( $post_id, 'membership_details_xero_cache', true );
+		return $membership_details;
+	}
 	public function meta_box_price_callback( $post ) {
 
 		wp_nonce_field( 'dtbaker_membership_metabox_nonce', 'dtbaker_membership_metabox_nonce' );
 
-		$membership_details = get_post_meta( $post->ID, 'membership_details', true );
-		if( !$membership_details || !is_array($membership_details) ){
-			$membership_details = array();
-		}
+		$membership_details = $this->get_member_details($post->ID);
 		foreach($this->membership_detail_fields as $field_id => $field_title){
 			?>
 			<p>
 				<label for="member_detail_<?php echo esc_attr( $field_id );?>"><?php echo esc_html($field_title); ?></label>
 				<?php switch($field_id){
+					case 'rfid':
+						$this->generate_post_select( 'membership_details[rfid]', 'dtbaker_rfid', $membership_details['rfid']);
+						break;
 					case 'xero_id':
 						// lookup xero contacts from api. uses the ContactID field from Xero
 						$contacts = $this->_xero_get_all_contacts( isset($_REQUEST['xero_refresh']) );
@@ -365,13 +396,14 @@ class DtbakerMembershipManager {
 				// cache local xero details for this member
 				$contacts = $this->_xero_get_all_contacts( );
 				if(isset($contacts[$membership_details['xero_id']])){
-					$membership_details['xero_cache'] = $contacts[$membership_details['xero_id']];
+					update_post_meta( $post_id, 'membership_details_xero_cache', $contacts[$membership_details['xero_id']]);
 				}else{
 					unset($membership_details['xero_id']);
-					unset($membership_details['xero_cache']);
 				}
 			}
-			update_post_meta( $post_id, 'membership_details', $membership_details );
+			foreach($this->membership_detail_fields as $key=>$val){
+				update_post_meta( $post_id, 'membership_details_'.$key, isset($membership_details[$key]) ? $membership_details[$key] : '');
+			}
 
 		}
 		if ( isset( $_POST['membership_contact'] ) && is_array( $_POST['membership_contact'] ) ) {
@@ -405,6 +437,18 @@ class DtbakerMembershipManager {
 
 	}
 
+	public function generate_post_select($select_id, $post_type, $selected = 0) {
+		$post_type_object = get_post_type_object($post_type);
+		$label = $post_type_object->label;
+		$posts = get_posts(array('post_type'=> $post_type, 'post_status'=> 'publish', 'suppress_filters' => false, 'posts_per_page'=>-1));
+		echo '<select name="'. $select_id .'" id="'.$select_id.'">';
+		echo '<option value = "" > - Select '.$label.' - </option>';
+		foreach ($posts as $post) {
+			echo '<option value="', $post->ID, '"', $selected == $post->ID ? ' selected="selected"' : '', '>', $post->post_title, '</option>';
+		}
+		echo '</select>';
+	}
+
 
 	public function register_custom_post_type() {
 
@@ -431,7 +475,7 @@ class DtbakerMembershipManager {
 			'rewrite'           => array( 'slug' => 'member-access' ),
 		);
 
-		register_taxonomy( 'dtbaker_membership_access', array( 'dtbaker_membership' ), $args );
+		register_taxonomy( 'dtbaker_membership_access', array( 'dtbaker_membership', 'dtbaker_rfid_log' ), $args );
 
 		
 		$labels = array(
@@ -463,7 +507,7 @@ class DtbakerMembershipManager {
 			'supports'            => array( 'title', 'editor', 'thumbnail', 'page-attributes' ),
 			'taxonomies'          => array(),
 			'hierarchical'        => false,
-			'public'              => true,
+			'public'              => false,
 			'show_ui'             => true,
 			'show_in_menu'        => true,
 			'show_in_nav_menus'   => true,
@@ -471,9 +515,9 @@ class DtbakerMembershipManager {
 			'menu_position'       => 36,
 			'menu_icon'           => 'dashicons-admin-users',
 			'can_export'          => true,
-			'has_archive'         => false, // important for our support/documentation-menu slug
-			'exclude_from_search' => false,
-			'publicly_queryable'  => true,
+			'has_archive'         => false,
+			'exclude_from_search' => true,
+			'publicly_queryable'  => false,
 			'rewrite'             => $rewrite,
 			'capability_type'     => 'post',
 			'map_meta_cap'        => true,
@@ -481,9 +525,237 @@ class DtbakerMembershipManager {
 
 		register_post_type( 'dtbaker_membership', $args );
 
+		
+		$labels = array(
+			'name'               => 'RFID Keys',
+			'singular_name'      => 'RFID Key',
+			'menu_name'          => 'RFID',
+			'parent_item_colon'  => 'Parent RFID:',
+			'all_items'          => 'RFID Keys',
+			'view_item'          => 'View RFID',
+			'add_new_item'       => 'Add New RFID',
+			'add_new'            => 'New RFID Key',
+			'edit_item'          => 'Edit RFID',
+			'update_item'        => 'Update RFID',
+			'search_items'       => 'Search RFIDs',
+			'not_found'          => 'No RFIDs found',
+			'not_found_in_trash' => 'No RFIDs found in Trash',
+		);
+
+		$rewrite = array(
+			'slug'       => 'rfid',
+			'with_front' => false,
+			'pages'      => true,
+			'feeds'      => true,
+		);
+		$args    = array(
+			'label'               => 'dtbaker_rfid_item',
+			'description'         => 'RFID Keys',
+			'labels'              => $labels,
+			'supports'            => array( 'title', 'editor', 'thumbnail', 'page-attributes' ),
+			'taxonomies'          => array(),
+			'hierarchical'        => false,
+			'public'              => false,
+			'show_ui'             => true,
+			'show_in_menu'        => true,
+			'show_in_nav_menus'   => true,
+			'show_in_admin_bar'   => true,
+			'menu_position'       => 36,
+			'menu_icon'           => 'dashicons-admin-users',
+			'can_export'          => true,
+			'has_archive'         => false,
+			'exclude_from_search' => true,
+			'publicly_queryable'  => false,
+			'rewrite'             => $rewrite,
+			'capability_type'     => 'post',
+			'map_meta_cap'        => true,
+		);
+
+		register_post_type( 'dtbaker_rfid', $args );
+		
+		$labels = array(
+			'name'               => 'RFID Log History',
+			'singular_name'      => 'RFID Log',
+			'menu_name'          => 'RFIDs',
+			'parent_item_colon'  => 'Parent RFID:',
+			'all_items'          => 'RFID History',
+			'view_item'          => 'View RFID',
+			'add_new_item'       => 'Add New RFID',
+			'add_new'            => 'New RFID Log Entry',
+			'edit_item'          => 'Edit RFID',
+			'update_item'        => 'Update RFID',
+			'search_items'       => 'Search RFIDs',
+			'not_found'          => 'No RFIDs found',
+			'not_found_in_trash' => 'No RFIDs found in Trash',
+		);
+
+		$rewrite = array(
+			'slug'       => 'rfid-log',
+			'with_front' => false,
+			'pages'      => true,
+			'feeds'      => true,
+		);
+		$args    = array(
+			'label'               => 'dtbaker_rfid_log_item',
+			'description'         => 'RFIDs',
+			'labels'              => $labels,
+			'supports'            => array( 'title', 'editor', 'thumbnail', 'page-attributes' ),
+			'taxonomies'          => array(),
+			'hierarchical'        => false,
+			'public'              => false,
+			'show_ui'             => true,
+			'show_in_menu'        => 'edit.php?post_type=dtbaker_rfid',
+			'show_in_nav_menus'   => true,
+			'show_in_admin_bar'   => true,
+			'menu_position'       => 36,
+			'menu_icon'           => 'dashicons-admin-users',
+			'can_export'          => true,
+			'has_archive'         => false,
+			'exclude_from_search' => true,
+			'publicly_queryable'  => false,
+			'rewrite'             => $rewrite,
+			'capability_type'     => 'post',
+			'map_meta_cap'        => true,
+		);
+
+		register_post_type( 'dtbaker_rfid_log', $args );
+
 
 	}
 
 }
 
 DtbakerMembershipManager::get_instance()->init();
+
+
+class TechSpace_API_Endpoint{
+
+	/** Hook WordPress
+	 *	@return void
+	 */
+	public function __construct(){
+		add_filter('query_vars', array($this, 'add_query_vars'), 0);
+		add_action('parse_request', array($this, 'sniff_requests'), 0);
+		add_action('init', array($this, 'add_endpoint'), 0);
+	}
+
+	/** Add public query vars
+	 *	@param array $vars List of current public query vars
+	 *	@return array $vars
+	 */
+	public function add_query_vars($vars){
+		$vars[] = '__api';
+		$vars[] = 'rfid';
+		$vars[] = 'access';
+		return $vars;
+	}
+
+	/** Add API Endpoint
+	 *	This is where the magic happens - brush up on your regex skillz
+	 *	@return void
+	 */
+	public function add_endpoint(){
+		add_rewrite_rule('^api/rfid/?([0-9]+)?/?([a-zA-Z0-9-]+)?/?','index.php?__api=1&rfid=$matches[1]&access=$matches[2]','top');
+	}
+	/**	Sniff Requests
+	 *	This is where we hijack all API requests
+	 * 	If $_GET['__api'] is set, we kill WP and serve up api results
+	 *	@return die if API request
+	 */
+	public function sniff_requests(){
+		global $wp;
+		if(isset($wp->query_vars['__api'])){
+			$this->handle_request();
+			exit;
+		}
+	}
+
+	/** Handle Requests
+	 *	This is where we send off for an intense pug bomb package
+	 *	@return void
+	 */
+	protected function handle_request(){
+		global $wp;
+
+		$rfid = $wp->query_vars['rfid'];
+		if(!$rfid || strlen($rfid) < 5)
+			$this->send_response('Please tell us RFID code.');
+
+		$access = $wp->query_vars['access'];
+		$available_access = get_terms( 'dtbaker_membership_access', array(
+			'hide_empty' => false,
+		) );
+		$valid_access_term_id = false;
+		foreach($available_access as $available_acces){
+			if($access && $available_acces->slug == $access){
+				$valid_access_term_id = $available_acces->term_id;
+			}
+		}
+		if(!$access || !$valid_access_term_id)
+			$this->send_response('Please tell us Access location.');
+
+		$rfid_cards = get_posts(array('post_type'=>'dtbaker_rfid','post_status'=> 'publish', 'suppress_filters' => false, 'posts_per_page'=>-1));
+		$valid_rfid = false;
+		foreach($rfid_cards as $rfid_card){
+			if($rfid_card->post_title == $rfid){
+				$valid_rfid = $rfid_card->ID;
+			}
+		}
+		if(!$valid_rfid){
+			// create one.
+			$valid_rfid = wp_insert_post(array(
+				'post_title' => $rfid,
+				'post_type' => 'dtbaker_rfid',
+				'post_status' => 'publish',
+				'post_content' => 'Inserted by the API by a request from '.$access.' '.$_SERVER['REMOTE_ADDR'].' at '.date('Y-m-d H:i:s'),
+			));
+		}
+
+		if($valid_rfid){
+			//echo "Found a RFID card with id $valid_rfid";
+			// we have a valid RFID card.
+			// log a history for this card
+			$rfid_history_event = wp_insert_post(array(
+				'post_title' => $rfid . ' @ ' .$access,
+				'post_type' => 'dtbaker_rfid_log',
+				'post_status' => 'publish',
+				'post_content' => 'Access from API by a request from '.$access.' '.$_SERVER['REMOTE_ADDR'].' at '.date('Y-m-d H:i:s'),
+			));
+			if($rfid_history_event){
+				wp_set_object_terms( $rfid_history_event, $valid_access_term_id, 'dtbaker_membership_access' );
+
+				// check its association to a member.
+				$members = get_posts(array(
+					'post_type' => 'dtbaker_membership',
+					'post_status' => 'publish',
+					'meta_key'   => 'membership_details_rfid',
+					'meta_value' => $valid_rfid
+				));
+				if($members){
+					// valid membership! yay!
+					$member_access = current($members);
+					if($member_access->ID){
+						$this->send_response('365');
+					}
+				}
+			}
+
+
+		}
+		// return number of days until membership expires
+
+		$this->send_response('0');
+		//$this->send_response("Success with RFID $rfid at location $access");
+	}
+
+	/** Response Handler
+	 *	This sends a JSON response to the browser
+	 */
+	protected function send_response($msg){
+		$response['message'] = $msg;
+		header('content-type: text/plain');
+		echo json_encode($response)."\n";
+		exit;
+	}
+}
+new TechSpace_API_Endpoint();
