@@ -21,4 +21,15 @@ coming soon
 
 Details on how to query the membership database via the WordPress API:
 
+```
+# using https://github.com/rodrigosclosa/ESP8266RestClient
+RestClient client = RestClient("gctechspace.org",443);
+client.setSecureConnection(true);
+client.begin("ssid", "password");
+String response = "";
+response = "";
+int statusCode = client.post("/api/rfid/123456789123456/room-3", "secret=secretcodehere", &response);
+```
+
 Note: if you get 404 trying to access API, go to Settings > Permalinks in WordPress and click the save button. This clears the URL rewrite cache.
+

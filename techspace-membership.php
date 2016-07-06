@@ -64,13 +64,8 @@ class DtbakerMembershipManager {
 	}
 
 	public function menu_settings_callback(){
-		if ( ! isset( $_REQUEST['settings-updated'] ) )
-			$_REQUEST['settings-updated'] = false;
 		?>
 		<div class="wrap">
-			<?php if ( false !== $_REQUEST['settings-updated'] ) : ?>
-				<div class="updated fade"><p><strong><?php _e( 'Settings saved!', 'wporg' ); ?></strong></p></div>
-			<?php endif; ?>
 			<div id="poststuff">
 				<div id="post-body">
 					<div id="post-body-content">
@@ -195,6 +190,15 @@ class DtbakerMembershipManager {
 			'techspace_membership_section'
 		);
 		register_setting( 'techspace_member_settings', 'techspace_membership_secret_key' );
+
+		add_settings_field(
+			'techspace_membership_api_secret',
+			'Our API Secret',
+			array( $this, 'settings_callback_api_secret' ),
+			'techspace_member_settings',
+			'techspace_membership_section'
+		);
+		register_setting( 'techspace_member_settings', 'techspace_membership_api_secret' );
 	}
 
 	public function settings_section_callback(){
@@ -210,11 +214,15 @@ class DtbakerMembershipManager {
 	}
 	public function settings_callback_consumer_key(){
 		$setting = esc_attr( get_option( 'techspace_membership_consumer_key' ) );
-		?> <input type="text" name="techspace_membership_consumer_key" placeholder="<?php echo strlen($setting) ? 'Already Saved' : 'Paste New consumer Key Here';?>"></input> <?php
+		?> <input type="text" name="techspace_membership_consumer_key" placeholder="<?php echo strlen($setting) ? 'Already Saved' : 'Paste New consumer Key Here';?>"><?php
 	}
 	public function settings_callback_secret_key(){
 		$setting = esc_attr( get_option( 'techspace_membership_secret_key' ) );
-		?> <input type="text" name="techspace_membership_secret_key" placeholder="<?php echo strlen($setting) ? 'Already Saved' : 'Paste New secret Key Here';?>"></input> <?php
+		?> <input type="text" name="techspace_membership_secret_key" placeholder="<?php echo strlen($setting) ? 'Already Saved' : 'Paste New secret Key Here';?>"><?php
+	}
+	public function settings_callback_api_secret(){
+		$setting = esc_attr( get_option( 'techspace_membership_api_secret' ) );
+		?> <input type="text" name="techspace_membership_api_secret" placeholder="<?php echo strlen($setting) ? 'Already Saved' : 'Paste New secret Key Here';?>"><?php
 	}
 
 	public function frontend_css() {
@@ -665,7 +673,10 @@ class TechSpace_API_Endpoint{
 	public function sniff_requests(){
 		global $wp;
 		if(isset($wp->query_vars['__api'])){
-			$this->handle_request();
+			mail('dtbaker@gmail.com','API Debug',var_export($_REQUEST,true));
+			if($_POST['secret'] == get_option( 'techspace_membership_api_secret' )){
+				$this->handle_request();
+			}
 			exit;
 		}
 	}
@@ -752,9 +763,9 @@ class TechSpace_API_Endpoint{
 	 *	This sends a JSON response to the browser
 	 */
 	protected function send_response($msg){
-		$response['message'] = $msg;
-		header('content-type: text/plain');
-		echo json_encode($response)."\n";
+		//header('content-type: text/plain');
+		ob_end_clean();
+		echo $msg;
 		exit;
 	}
 }
