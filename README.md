@@ -11,11 +11,18 @@ RFID key storage and access restrictions.
 
 Upload this to wp-content/plugin/techspace-membership/ and then activate from the WordPress plugins menu.
 
-Look for the new "Members" menu that appears on the left hand side of WordPress
+Look for the new "Members" and "RFID" menu that appears on the left hand side of WordPress
 
 ## Screenshots:
 
-coming soon
+List of members, showing integration with Xero, linking RFID card to a member, and controlling what access that member has (which room/equipment):
+
+![member list](http://i.imgur.com/y1cjbrt.jpg)
+
+RFID key swipe access log. Any swipe activity on doors will appear here.
+
+![rfid history](http://i.imgur.com/MT56B05.jpg)
+
 
 ## API Access:
 
@@ -31,5 +38,10 @@ response = "";
 int statusCode = client.post("/api/rfid/123456789123456/room-3", "secret=secretcodehere", &response);
 ```
 
-Note: if you get 404 trying to access API, go to Settings > Permalinks in WordPress and click the save button. This clears the URL rewrite cache.
+
+## Dev notes:
+
+Go into Settings > TechSpace Members and add the Xero Public/Private keys along with choosing your own API secret key for ESP access.
+
+if you get 404 trying to access API, go to Settings > Permalinks in WordPress and click the save button. This clears the URL rewrite cache.
 
