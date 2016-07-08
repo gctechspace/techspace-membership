@@ -301,6 +301,7 @@ class DtbakerMembershipManager {
 		foreach($this->membership_detail_fields as $key=>$val){
 			$membership_details[$key] = get_post_meta( $post_id, 'membership_details_'.$key, true );
 		}
+		$membership_details['expiry_days'] = 123; //todo
 		$membership_details['xero_cache'] = get_post_meta( $post_id, 'membership_details_xero_cache', true );
 		return $membership_details;
 	}
@@ -673,16 +674,20 @@ class TechSpace_API_Endpoint{
 	public function sniff_requests(){
 		global $wp;
 		if(isset($wp->query_vars['__api'])){
-			mail('dtbaker@gmail.com','API Debug',var_export($_REQUEST,true));
-			if($_POST['secret'] == get_option( 'techspace_membership_api_secret' )){
-				$this->handle_request();
+			//mail('dtbaker@gmail.com','API Debug',var_export($_REQUEST,true));
+			if(true || !empty($_POST['secret']) && $_POST['secret'] == get_option( 'techspace_membership_api_secret' )){
+
+				if(empty($wp->query_vars['rfid']) && !empty($wp->query_vars['access']) && $wp->query_vars['access'] == 'all'){
+					$this->handle_all();
+				}else{
+					$this->handle_request();
+				}
 			}
 			exit;
 		}
 	}
 
 	/** Handle Requests
-	 *	This is where we send off for an intense pug bomb package
 	 *	@return void
 	 */
 	protected function handle_request(){
@@ -757,6 +762,45 @@ class TechSpace_API_Endpoint{
 
 		$this->send_response('0');
 		//$this->send_response("Success with RFID $rfid at location $access");
+	}
+
+
+
+	/** Handle Requests
+	 *	@return void
+	 */
+	protected function handle_all(){
+		global $wp;
+
+
+		$member_manager = DtbakerMembershipManager::get_instance();
+
+		$result = array();
+
+		$members = get_posts(array(
+			'post_type' => 'dtbaker_membership',
+			'post_status' => 'publish',
+		));
+
+		foreach($members as $member){
+			$member_details = $member_manager->get_member_details($member->ID);
+			$rfid_code = !empty($member_details['rfid']) ? get_post($member_details['rfid']) : false;
+			$access = array();
+			foreach(wp_get_post_terms($member->ID, 'dtbaker_membership_access') as $term){
+				$access[$term->slug] = $term->name;
+			}
+			$result[] = array(
+				'member_name' => $member->post_title,
+				'membership_expiry_days' => $member_details['expiry_days'],
+				'xero_contact_id' => $member_details['xero_id'],
+				'xero_contact_details' => !empty($member_details['xero_cache']) ? $member_details['xero_cache'] : false,
+				'rfid' => $rfid_code ? $rfid_code->post_title : '',
+				'access' => $access,
+			);
+		}
+
+		$this->send_response(json_encode($result));
+
 	}
 
 	/** Response Handler

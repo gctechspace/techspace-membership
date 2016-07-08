@@ -1,3 +1,122 @@
-<form action="http://gctechspace.org/api/rfid/1234567812345/room-3" method="post">
-    Secret: <input type="text" name="secret"> <input type="submit" name="test" value="test">
-</form>
+<html>
+    <head><title>API</title>
+    <script   src="https://code.jquery.com/jquery-3.1.0.min.js"   integrity="sha256-cCueBR6CsyA4/9szpPfrX3s49M9vUU5BgtiJj06wt/s="   crossorigin="anonymous"></script>
+        <script>
+            function escapeHtml(text) {
+                var map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                };
+                return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+            }
+            $(function(){
+                $('.api-generator').each(function(){
+                    var $f = $(this);
+                    var $r = $f.find('.api_result');
+                    function update_api(){
+                        var formcode = $f.data('formcode');
+                        $f.find('input,select').each(function(){
+                            formcode = formcode.replace( $(this).data('key'), $(this).val() );
+                        });
+                        $r.html('<pre>' + escapeHtml(formcode)+'</pre>' + formcode);
+                    }
+                    update_api();
+                    $f.find('input,select').on({
+                        change: update_api,
+                        keyup: update_api
+                    });
+                });
+            });
+        </script>
+</head>
+<body>
+
+<h2>Test Data</h2>
+
+RFID Key: 1234567812345 for David. Access to Back Door only. <br/>
+RFID Key: 9265473542 for Skip. Access to Room3 and Back Door.
+
+<hr>
+<h2>Checkin/Log Access API Call:</h2>
+<div class="api-generator" data-formcode='<form action="wordpress_url/api/rfid/rfid_key/access" method="post" target="_blank"><input type="hidden" name="secret" value="api_secret"><input type="submit" value="Run API"></form>'>
+    <div>
+        WordPress URL: <input type="text" data-key="wordpress_url" value="https://gctechspace.org">
+    </div>
+    <div>
+        RFID Key: <input type="text" data-key="rfid_key">
+    </div>
+    <div>
+        Access: <select data-key="access">
+            <option value="room-3">Room 3</option>
+            <option value="back-door">Back Door</option>
+            <option value="invalid">Invalid Location</option>
+        </select>
+    </div>
+    <div>
+        API Secret: <input data-key="api_secret" type="text">
+    </div>
+    <div>
+        Return Value: Number of days left in membership. 0 for expired membership. -1 on unknown RFID key. -2 on access denied.
+    </div>
+    <div>
+        Run API Example:
+    </div>
+    <div class="api_result">
+
+    </div>
+</div>
+<hr>
+<h2>List All Keys API Call:</h2>
+<div class="api-generator" data-formcode='<form action="wordpress_url/api/rfid/all" method="post" target="_blank"><input type="hidden" name="secret" value="api_secret"><input type="submit" value="Run API"></form>'>
+    <div>
+        WordPress URL: <input type="text" data-key="wordpress_url" value="https://gctechspace.org">
+    </div>
+    <div>
+        API Secret: <input data-key="api_secret" type="text">
+    </div>
+    <div>
+        Example Return Value:
+        <pre>[
+  {
+    "member_name": "Skip",
+    "membership_expiry_days": 123,
+    "xero_contact_id": "95090df8-9be0-4577-8ec4-7d3d21fd2b44",
+    "xero_contact_details": {
+      "name": "Rod Christian",
+      "email": "skip.xtian@gmail.com"
+    },
+    "rfid": "9265473542",
+    "access": {
+      "back-door": "Back Door",
+      "room-3": "Room 3"
+    }
+  },
+  {
+    "member_name": "David",
+    "membership_expiry_days": 123,
+    "xero_contact_id": "d3c2972a-bf77-4b3d-b7c0-2a052e448df2",
+    "xero_contact_details": {
+      "name": "David Baker",
+      "email": "dtbaker@gmail.com"
+    },
+    "rfid": "1234567812345",
+    "access": {
+      "back-door": "Back Door"
+    }
+  }
+]</pre>
+    </div>
+    <div>
+        Run API Example:
+    </div>
+    <div class="api_result">
+
+    </div>
+</div>
+<hr>
+
+</body>
+</html>
