@@ -682,6 +682,8 @@ class TechSpace_API_Endpoint{
 				}else{
 					$this->handle_request();
 				}
+			}else{
+				$this->send_response('Invalid Secret');
 			}
 			exit;
 		}
@@ -695,7 +697,7 @@ class TechSpace_API_Endpoint{
 
 		$rfid = $wp->query_vars['rfid'];
 		if(!$rfid || strlen($rfid) < 5)
-			$this->send_response('Please tell us RFID code.');
+			$this->send_response('-1');
 
 		$access = $wp->query_vars['access'];
 		$available_access = get_terms( 'dtbaker_membership_access', array(
@@ -708,7 +710,7 @@ class TechSpace_API_Endpoint{
 			}
 		}
 		if(!$access || !$valid_access_term_id)
-			$this->send_response('Please tell us Access location.');
+			$this->send_response('-3');
 
 		$rfid_cards = get_posts(array('post_type'=>'dtbaker_rfid','post_status'=> 'publish', 'suppress_filters' => false, 'posts_per_page'=>-1));
 		$valid_rfid = false;
@@ -751,10 +753,14 @@ class TechSpace_API_Endpoint{
 					// valid membership! yay!
 					$member_access = current($members);
 					if($member_access->ID){
-						$this->send_response('365');
+						$member_manager = DtbakerMembershipManager::get_instance();
+						$member_details = $member_manager->get_member_details($member_access->ID);
+						$this->send_response($member_details['expiry_days']);
 					}
 				}
 			}
+
+			$this->send_response('-2');
 
 
 		}
