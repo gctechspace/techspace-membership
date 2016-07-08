@@ -674,8 +674,8 @@ class TechSpace_API_Endpoint{
 	public function sniff_requests(){
 		global $wp;
 		if(isset($wp->query_vars['__api'])){
-			//mail('dtbaker@gmail.com','API Debug',var_export($_REQUEST,true));
-			if(true || !empty($_POST['secret']) && $_POST['secret'] == get_option( 'techspace_membership_api_secret' )){
+			mail('dtbaker@gmail.com','API Debug',var_export($_REQUEST,true));
+			if(!empty($_POST['secret']) && $_POST['secret'] == get_option( 'techspace_membership_api_secret' )){
 
 				if(empty($wp->query_vars['rfid']) && !empty($wp->query_vars['access']) && $wp->query_vars['access'] == 'all'){
 					$this->handle_all();
