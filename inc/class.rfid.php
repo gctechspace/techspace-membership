@@ -93,8 +93,6 @@ class dtbaker_rfid{
 		foreach($this->detail_fields as $key=>$val){
 			$detail_fields[$key] = get_post_meta( $post_id, 'rfid_details_'.$key, true );
 		}
-		$detail_fields['expiry_days'] = 123; //todo
-		$detail_fields['xero_cache'] = get_post_meta( $post_id, 'rfid_details_xero_cache', true );
 		return $detail_fields;
 	}
 
@@ -129,7 +127,7 @@ class dtbaker_rfid{
 								break;
 							case 'date':
 								?>
-								<input type="text" name="rfid_details[<?php echo esc_attr( $field_id );?>]" id="member_detail_<?php echo esc_attr( $field_id );?>" value="<?php echo esc_attr( isset($rfid_details[$field_id]) ? date('Y-m-d',$rfid_details[$field_id]) : '' ); ?>" class="dtbaker-datepicker">
+								<input type="text" name="rfid_details[<?php echo esc_attr( $field_id );?>]" id="member_detail_<?php echo esc_attr( $field_id );?>" value="<?php echo esc_attr( !empty($rfid_details[$field_id]) ? date('Y-m-d',$rfid_details[$field_id]) : '' ); ?>" class="dtbaker-datepicker">
 								<?php
 								break;
 						}

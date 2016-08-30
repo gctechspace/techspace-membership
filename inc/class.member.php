@@ -24,7 +24,11 @@ class dtbaker_member{
 		add_action( 'save_post', array( $this, 'save_meta_box' ) );
 
 		$this->detail_fields = apply_filters('dtbaker_membership_detail_fields', array(
-			'role' => 'Role/Interests',
+			'role' => array(
+				'title' => 'Your Interests',
+				'type' => 'text',
+				'eg' => 'e.g. Programming, Electronics, 3D Printing, Drones'
+			),
 			'rfid' => 'RFID Keys',
 			'xero_id' => 'Xero Contact',
 			'locker_number' => 'Locker Number',
@@ -36,10 +40,11 @@ class dtbaker_member{
 				'title' => 'Member End',
 				'type' => 'date',
 			),
+			'phone' => 'Phone Number',
 			'facebook' => 'Facebook',
 			'twitter' => 'Twitter',
 			'google_plus' => 'Google+',
-			'envelope' => 'Email',
+			'email' => 'Email Address',
 			'slack' => 'Slack',
 		));
 
@@ -56,7 +61,8 @@ class dtbaker_member{
 		unset( $columns['date'] );
 		$columns['rfid'] = __( 'RFID' );
 		$columns['xero_id'] = __( 'Xero Contact' );
-		$columns['member_start'] = __( 'Membership Start' );
+		$columns['invoices'] = __( 'Invoices' );
+		//$columns['member_start'] = __( 'Membership Start' );
 		$columns['member_end'] = __( 'Membership Expiry' );
 		return $columns;
 	}
@@ -66,17 +72,20 @@ class dtbaker_member{
 		switch($column){
 			case 'rfid':
 				// look up linked rfid keys.
+
 				$rfid_keys = get_posts(array(
 					'post_type' => 'dtbaker_rfid',
 					'post_status' => 'publish',
-					'meta_key'   => 'member_id',
+					'meta_key'   => 'rfid_details_member_id',
 					'meta_value' => $post_id,
 				));
 				if($rfid_keys) {
 					foreach($rfid_keys as $rfid_key){
 						//echo str_pad(substr($rfid_code,0,5), strlen($rfid_code), '*', STR_PAD_RIGHT);
-						printf('<a href="%s">%s</a>', esc_url(get_edit_post_link($rfid_key->ID)), esc_html($rfid_key->post_title));
+						printf('<a href="%s">%s</a> ', esc_url(get_edit_post_link($rfid_key->ID)), esc_html($rfid_key->post_title));
 					}
+				}else{
+					echo 'None';
 				}
 				break;
 			case 'xero_id':
@@ -92,7 +101,24 @@ class dtbaker_member{
 			case 'member_end':
 				if(!empty($membership_details[$column])){
 					echo date('Y-m-d',$membership_details[$column]);
-					echo ' ('.DtbakerMembershipManager::get_instance()->fuzzy_date($membership_details[$column]).')';
+					$member_status = 'member_status_';
+					if($membership_details[$column] <= time()){
+						$member_status.='expired';
+					}else if($membership_details[$column] <= strtotime('+3 weeks')){
+						$member_status.='expiring';
+					}else{
+						$member_status.='good';
+					}
+					echo ' <span class="member_status '.$member_status.'">'.DtbakerMembershipManager::get_instance()->fuzzy_date($membership_details[$column]).'</span>';
+				}
+				break;
+			case 'invoices':
+				if(!empty($membership_details['invoice_cache']) && is_array($membership_details['invoice_cache']) && count($membership_details['invoice_cache'])){
+					end($membership_details['invoice_cache']);
+					$this->_print_invoice_details(key($membership_details['invoice_cache']), current($membership_details['invoice_cache']));
+					/*foreach($membership_details['invoice_cache'] as $invoice_id => $invoice){
+						$this->_print_invoice_details($invoice_id, $invoice);
+					}*/
 				}
 				break;
 			default:
@@ -112,8 +138,9 @@ class dtbaker_member{
 		foreach($this->detail_fields as $key=>$val){
 			$detail_fields[$key] = get_post_meta( $post_id, 'membership_details_'.$key, true );
 		}
-		$detail_fields['expiry_days'] = 123; //todo
+		$detail_fields['expiry_days'] = (!empty($detail_fields['member_end']) && $detail_fields['member_end'] > time()+86400) ? round(($detail_fields['member_end'] - time()) / 86400) : 0;
 		$detail_fields['xero_cache'] = get_post_meta( $post_id, 'membership_details_xero_cache', true );
+		$detail_fields['invoice_cache'] = get_post_meta( $post_id, 'membership_details_invoice_cache', true );
 		return $detail_fields;
 	}
 
@@ -133,7 +160,7 @@ class dtbaker_member{
 			}
 
 			?>
-			<p>
+			<div class="dtbaker_member_form_field">
 				<label for="member_detail_<?php echo esc_attr( $field_id );?>"><?php echo esc_html($field_data['title']); ?></label>
 				<?php switch($field_id){
 					case 'rfid':
@@ -148,8 +175,10 @@ class dtbaker_member{
 						if($rfid_keys) {
 							foreach($rfid_keys as $rfid_key){
 								//echo str_pad(substr($rfid_code,0,5), strlen($rfid_code), '*', STR_PAD_RIGHT);
-								printf('<a href="%s">%s</a>', esc_url(get_edit_post_link($rfid_key->ID)), esc_html($rfid_key->post_title));
+								printf('<a href="%s">%s</a> ', esc_url(get_edit_post_link($rfid_key->ID)), esc_html($rfid_key->post_title));
 							}
+						}else{
+							echo 'None';
 						}
 						break;
 					case 'xero_id':
@@ -159,6 +188,7 @@ class dtbaker_member{
 						?>
 						<select name="membership_details[xero_id]">
 							<option value=""> - Please Select - </option>
+							<option value="CreateNew">Create New XERO Contact</option>
 							<?php if(is_array($contacts) && count($contacts)){
 								foreach($contacts as $contact_id => $contact){ ?>
 									<option value="<?php echo esc_attr($contact_id);?>" <?php echo selected($membership_details['xero_id'], $contact_id);?>><?php echo esc_attr($contact['name']);?></option>
@@ -168,29 +198,50 @@ class dtbaker_member{
 								<option value=""> failed to get xero listing </option><?php
 							} ?>
 						</select>
-						<a href="<?php echo add_query_arg('xero_refresh', 1, get_edit_post_link($post->ID));?>">(refresh xero list)</a>
+						<a href="<?php echo add_query_arg('xero_refresh', 1, get_edit_post_link($post->ID));?>" class="member_inline_button">Refresh List</a>
 						<?php
 						// look up xero invoices for this contact
 						if( !empty($membership_details['xero_id'])) {
-							$invoices = dtbaker_xero::get_instance()->get_contact_invoices( $membership_details['xero_id'] );
+							?>
+							<br/>
+							<br/>
+							Xero Invoices:
+							<a href="<?php echo add_query_arg('xero_invoice_refresh', 1, get_edit_post_link($post->ID));?>" class="member_inline_button">Refresh</a>
+							<a href="#" class="member_inline_button" id="xero_create_new_invoice">Create New</a>
+							<div id="xero_create_invoice_form">
+								<strong>Create a new Invoice in Xero:</strong>
+								<div class="dtbaker_member_form_field">
+									Invoice Date: <input type="text" name="xero_invoice_date" value="" class="dtbaker-datepicker">
+								</div>
+								<div class="dtbaker_member_form_field">
+									<?php //print_r(dtbaker_xero::get_instance()->get_line_items()); ?>
+									Membership Type: <select type="text" name="xero_line_item">
+										<option value="">Please select</option>
+										<?php
+										$line_items = $this->get_member_types();
+										foreach($line_items as $line_item_id => $line_item){
+											?>
+											<option value="<?php echo $line_item_id;?>"><?php echo $line_item['name'] . ' $'.$line_item['price'];?></option>
+
+											<?php
+										}
+										?>
+									</select>
+								</div>
+								<div class="dtbaker_member_form_field">
+									<input type="button" name="create_invoice" value="Create Invoice" onclick="jQuery('#publish').click();">
+								</div>
+							</div>
+							<br/>
+							<?php
+							$invoices = dtbaker_xero::get_instance()->get_contact_invoices( $membership_details['xero_id'], isset($_REQUEST['xero_invoice_refresh']) );
 							if($invoices){
+								$this->cache_member_invoices($post->ID, $invoices);
 								?>
 								<ul class="dtbaker-xero-invoices">
 									<?php foreach($invoices as $invoice_id => $invoice){ ?>
 										<li>
-											Xero Invoice: <a href="https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=<?php echo esc_attr($invoice_id);?>" target="_blank"><?php echo esc_html($invoice['number'] .' '.date('Y-m-d',$invoice['time']) .' '.$invoice['status'].' $'.$invoice['total']); ?></a> <?php
-											if($invoice['due'] > 0){
-												?>
-												<span class="dtbaker-invoice-due">$<?php echo esc_html($invoice['due']);?> due.</span>
-												<?php
-											}
-											if(!$invoice['emailed']){
-												?>
-												<span class="dtbaker-invoice-emailed">Invoice not emailed!</span>
-												<?php
-											}
-											?>
-
+											<?php $this->_print_invoice_details($invoice_id, $invoice); ?>
 										</li>
 									<?php } ?>
 								</ul>
@@ -208,18 +259,36 @@ class dtbaker_member{
 								break;
 							case 'date':
 								?>
-								<input type="text" name="membership_details[<?php echo esc_attr( $field_id );?>]" id="member_detail_<?php echo esc_attr( $field_id );?>" value="<?php echo esc_attr( isset($membership_details[$field_id]) ? date('Y-m-d',$membership_details[$field_id]) : '' ); ?>" class="dtbaker-datepicker">
+								<input type="text" name="membership_details[<?php echo esc_attr( $field_id );?>]" id="member_detail_<?php echo esc_attr( $field_id );?>" value="<?php echo esc_attr( !empty($membership_details[$field_id]) ? date('Y-m-d',$membership_details[$field_id]) : '' ); ?>" class="dtbaker-datepicker">
 								<?php
 								break;
 						}
 				}
 				?>
-			</p>
+			</div>
 			<?php
 		}
 
 	}
 
+	private function _print_invoice_details($invoice_id, $invoice){
+		?>
+		<a href="https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=<?php echo esc_attr($invoice_id);?>" target="_blank"><?php echo esc_html($invoice['number'] .' '.date('Y-m-d',$invoice['time']) .' '.$invoice['status'].' $'.$invoice['total']); ?></a> <?php
+		if($invoice['due'] > 0){
+			?>
+			<span class="dtbaker-invoice-due">$<?php echo esc_html($invoice['due']);?> due.</span>
+			<?php
+		}else if($invoice['status'] == 'PAID'){
+			?>
+			<span class="dtbaker-invoice-paid">$<?php echo esc_html($invoice['total']);?> paid</span>
+			<?php
+		}
+		if(!$invoice['emailed']){
+			?>
+			<span class="dtbaker-invoice-emailed">Invoice not emailed!</span>
+			<?php
+		}
+	}
 
 	public function add_meta_box() {
 
@@ -258,10 +327,46 @@ class dtbaker_member{
 		if ( isset( $_POST['membership_details'] ) && is_array( $_POST['membership_details'] ) ) {
 			$membership_details = $_POST['membership_details'];
 			if(!empty($membership_details['xero_id'])){
+
+				// create new contact if missing
+				if($membership_details['xero_id'] == "CreateNew"){
+					$new_xero_contact = dtbaker_xero::get_instance()->create_contact( array(
+						'name' => get_the_title($post_id),
+						'email'       => $membership_details['email'],
+						'phone'       => $membership_details['phone'],
+					) );
+					$all_contacts = dtbaker_xero::get_instance()->get_all_contacts( true );
+					if($new_xero_contact && isset($all_contacts[$new_xero_contact])){
+						$membership_details['xero_id'] = $new_xero_contact;
+					}else{
+						echo 'Failed to create new contact'; exit;
+					}
+				}
 				// cache local xero details for this member
 				$contacts = dtbaker_xero::get_instance()->get_all_contacts( );
 				if(isset($contacts[$membership_details['xero_id']])){
 					update_post_meta( $post_id, 'membership_details_xero_cache', $contacts[$membership_details['xero_id']]);
+
+					// we have a valid contact in our system. are we generating an invoice?
+					if(!empty($_POST['xero_line_item']) && !empty($_POST['xero_invoice_date']) && $invoice_time = strtotime($_POST['xero_invoice_date'])){
+						$line_items = $this->get_member_types();
+						if(isset($line_items[$_POST['xero_line_item']])) {
+							$new_invoice = dtbaker_xero::get_instance()->create_invoice( array(
+								'contact_id' => $membership_details['xero_id'],
+								'date'       => date( 'Y-m-d', $invoice_time ),
+								'due_date'   => date( 'Y-m-d', strtotime( '+7 days', $invoice_time ) ),
+								'item_code'  => $line_items[$_POST['xero_line_item']]['code'],
+								'description'  => $line_items[$_POST['xero_line_item']]['name'],
+							) );
+							if($new_invoice){
+								// reload invoice cache for member
+								$invoices = dtbaker_xero::get_instance()->get_contact_invoices( $membership_details['xero_id'], true );
+								$this->cache_member_invoices($post_id, $invoices);
+							}else{
+								echo 'Failed to create invoice'; exit;
+							}
+						}
+					}
 				}else{
 					unset($membership_details['xero_id']);
 				}
@@ -280,6 +385,11 @@ class dtbaker_member{
 
 	}
 
+	public function cache_member_invoices($member_post_id, $invoices){
+		if($invoices && is_array($invoices)){
+			update_post_meta( $member_post_id, 'membership_details_invoice_cache', $invoices );
+		}
+	}
 
 	public function register_custom_post_type() {
 
@@ -386,6 +496,39 @@ class dtbaker_member{
 
 	}
 
+	public function get_member_types() {
+
+		// todo: config utility to select which line items to store.
+		$member_types = array(
+			'b5f3cfc-6f3e-4311-978f-e36069929067' => array(
+				'code' => 'mem12Months',
+				'name' => '12 Months Membership',
+				'months' => '12',
+				'price' => '225',
+			),
+			'07860992-c84a-4633-9805-065aba35401b' => array(
+				'code' => 'mem6Monthly',
+				'name' => '6 Months Membership',
+				'months' => '6',
+				'price' => '125',
+			),
+			'e11ddd97-062e-408f-abaa-2cdd1214a2aa' => array(
+				'code' => 'memMonthly2016',
+				'name' => '1 Month Membership',
+				'months' => '1',
+				'price' => '25',
+			),
+		);
+		/*foreach(dtbaker_xero::get_instance()->get_line_items() as $id => $line_item){
+			if(!isset($member_types[$id]) && $line_item['price']){
+				$line_item['name'] = $line_item['description'];
+				$member_types[$id] = $line_item;
+			}
+		}*/
+		return $member_types;
+	}
+
 }
 
 dtbaker_member::get_instance()->init();
+

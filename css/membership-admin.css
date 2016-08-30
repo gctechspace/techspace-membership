@@ -1,0 +1,71 @@
+.dtbaker_member_form_field {
+  padding: 5px 0;
+}
+.member_status {
+  border-radius: 7px;
+  display: inline-block;
+  padding: 3px 6px;
+  font-size: 0.8em;
+  font-weight: bold;
+}
+.member_status.member_status_expired {
+  background: #FF0000;
+  color: #FFF;
+}
+.member_status.member_status_expiring {
+  background: #ffa838;
+  color: #FFF;
+}
+.member_status.member_status_good {
+  background: #008505;
+  color: #FFF;
+}
+.member_inline_button {
+  border-radius: 7px;
+  display: inline-block;
+  padding: 3px 6px;
+  font-size: 0.8em;
+  font-weight: bold;
+  background: #4badff;
+  color: #FFF;
+  text-decoration: none;
+}
+.dtbaker-invoice-due {
+  border-radius: 7px;
+  display: inline-block;
+  padding: 3px 6px;
+  font-size: 0.8em;
+  font-weight: bold;
+  background: #ff2631;
+  color: #FFF;
+  text-decoration: none;
+}
+.dtbaker-invoice-paid {
+  border-radius: 7px;
+  display: inline-block;
+  padding: 3px 6px;
+  font-size: 0.8em;
+  font-weight: bold;
+  background: #69a828;
+  color: #FFF;
+  text-decoration: none;
+}
+.dtbaker-invoice-emailed {
+  border-radius: 7px;
+  display: inline-block;
+  padding: 3px 6px;
+  font-size: 0.8em;
+  font-weight: bold;
+  background: #a85d3a;
+  color: #FFF;
+  text-decoration: none;
+}
+#xero_create_invoice_form {
+  display: none;
+  margin: 13px;
+  padding: 10px;
+  border: 1px solid #EFEFEF;
+}
+.wp-admin.post-type-dtbaker_membership textarea#content {
+  height: 70px !important;
+}
