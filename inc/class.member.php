@@ -46,6 +46,14 @@ class dtbaker_member{
 			'google_plus' => 'Google+',
 			'email' => 'Email Address',
 			'slack' => 'Slack',
+			'notifications' => array(
+				'title' => 'Notifications',
+				'type' => 'select',
+				'options' => array(
+					'0' => 'Publish notifications on door openenings (e.g. to Slack)',
+					'1' => 'No public notifications',
+				)
+			),
 		));
 
 	}
@@ -252,6 +260,16 @@ class dtbaker_member{
 						break;
 					default:
 						switch($field_data['type']){
+							case 'select':
+								if(empty($membership_details[$field_id]))$membership_details[$field_id] = 0;
+								?>
+								<select name="membership_details[<?php echo esc_attr( $field_id );?>]" id="member_detail_<?php echo esc_attr( $field_id );?>">
+									<?php foreach($field_data['options'] as $value => $label){ ?>
+										<option value="<?php echo esc_attr($value);?>" <?php echo selected($membership_details[$field_id], $value);?>><?php echo esc_attr($label);?></option>
+									<?php } ?>
+								</select>
+								<?php
+								break;
 							case 'text':
 								?>
 								<input type="text" name="membership_details[<?php echo esc_attr( $field_id );?>]" id="member_detail_<?php echo esc_attr( $field_id );?>" value="<?php echo esc_attr( isset($membership_details[$field_id]) ? $membership_details[$field_id] : '' ); ?>">

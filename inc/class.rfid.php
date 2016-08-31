@@ -46,6 +46,64 @@ class dtbaker_rfid{
 		<div class="wrap">
 			<h1>RFID History Log</h1>
 
+			<?php
+ini_set('display_errors',true);
+ini_set('error_reporting',E_ALL);
+			$myListTable = new TechSpaceRFIDHistoryTable(array(
+				'screen' => 'rfid_history'
+			));
+			global $wpdb;
+			$history = $wpdb->get_results(
+				"SELECT * 
+				FROM `" . $wpdb->prefix . "ts_rfid` ORDER BY ts_rfid DESC"
+				,ARRAY_A
+			);
+			$myListTable->set_data($history);
+			$myListTable->set_callback(function($item, $column_name){
+				switch($column_name){
+					case 'member_id':
+						if($item['member_id']){
+							$member = get_post($item['member_id']);
+							if($member){
+								return sprintf('<a href="%s">%s</a>', esc_url(get_edit_post_link($member->ID)), esc_html($member->post_title));
+							}
+						}
+						return 'N/A';
+						break;
+					case 'rfid_id':
+						if($item['rfid_id']){
+							$member = get_post($item['rfid_id']);
+							if($member){
+								return sprintf('<a href="%s">%s</a>', esc_url(get_edit_post_link($member->ID)), esc_html($member->post_title));
+							}
+						}
+						return 'N/A';
+						break;
+					case 'time':
+						return date('Y-m-d H:i:s', $item['access_time']);
+						break;
+					case 'access':
+						if($item['access_id'] > 0) {
+							$available_access = get_terms( 'dtbaker_membership_access', array(
+								'hide_empty' => false,
+							) );
+							foreach ( $available_access as $available_acces ) {
+								if ( $available_acces->term_id == $item['access_id'] ) {
+									return $available_acces->slug;
+								}
+							}
+							return 'Unknown';
+						}else{
+							return 'Checkin';
+						}
+
+						break;
+				}
+			});
+			$myListTable->prepare_items();
+			$myListTable->display();
+			?>
+
 		</div>
 		<?php
 	}
@@ -73,8 +131,8 @@ class dtbaker_rfid{
 				break;
 			case 'last_access':
 				if(!empty($details[$column])){
-					echo date('Y-m-d',$details[$column]);
-					echo ' ('.DtbakerMembershipManager::get_instance()->fuzzy_date($details[$column]).')';
+					echo date('Y-m-d H:i:s',$details[$column]);
+					//echo ' ('.DtbakerMembershipManager::get_instance()->fuzzy_date($details[$column]).')';
 				}
 				break;
 			default:

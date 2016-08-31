@@ -122,6 +122,15 @@ class DtbakerMembershipManager {
 			'techspace_membership_section'
 		);
 		register_setting( 'techspace_member_settings', 'techspace_membership_api_secret' );
+
+		add_settings_field(
+			'techspace_membership_slack_api',
+			'Slack API Key',
+			array( $this, 'settings_callback_slack_api' ),
+			'techspace_member_settings',
+			'techspace_membership_section'
+		);
+		register_setting( 'techspace_member_settings', 'techspace_membership_slack_api' );
 	}
 
 	public function whitelist_options($options){
@@ -159,6 +168,10 @@ class DtbakerMembershipManager {
 	public function settings_callback_api_secret(){
 		$setting = esc_attr( get_option( 'techspace_membership_api_secret' ) );
 		?> <input type="text" name="techspace_membership_api_secret" class="techspace-edit-form" placeholder="<?php echo strlen($setting) ? 'Already Saved' : 'Paste New secret Key Here';?>"><?php
+	}
+	public function settings_callback_slack_api(){
+		$setting = esc_attr( get_option( 'techspace_membership_slack_api' ) );
+		?> <input type="text" name="techspace_membership_slack_api" class="techspace-edit-form" placeholder="<?php echo strlen($setting) ? 'Already Saved' : 'Paste New secret Key Here';?>"><?php
 	}
 
 	public function frontend_css() {

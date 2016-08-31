@@ -124,3 +124,111 @@ class TechSpaceMembersTable extends WP_List_Table {
 
 
 } //class
+
+
+
+class TechSpaceRFIDHistoryTable extends WP_List_Table {
+
+	public $action_key = 'ID';
+	public $table_data = array();
+	public $columns = array();
+	public $_sortable_columns = array();
+	public $found_data = array();
+
+	public $items_per_page = 0;
+
+	public $pagination_has_more = false;
+
+	function __construct($args = array()) {
+		global $status, $page;
+
+		$args = wp_parse_args( $args, array(
+			'plural' => __( 'RFID History' ),
+			'singular' => __( 'RFID History' ),
+			'ajax' => false,
+		) );
+
+		parent::__construct( $args );
+
+		$this->set_columns( array(
+			'ts_rfid' => __( 'History ID' ),
+			'member_id' => __( 'Member' ),
+			'rfid_id' => __( 'RFID' ),
+			'time'    => __( 'Time' ),
+			'access'    => __( 'Access Point' ),
+			'ip_address'    => __( 'IP Address' ),
+			'api_result'    => __( 'API Result' ),
+		) );
+
+	}
+
+	function no_items() {
+		_e( 'No history found.' );
+	}
+
+	function column_default( $item, $column_name ) {
+		if($this->row_callback !== false){
+			$res = call_user_func($this->row_callback, $item, $column_name);
+			if($res){
+				return $res;
+			}
+		}
+		return isset($item[ $column_name ]) ? $item[ $column_name ] : 'N/A';
+	}
+
+	function set_data($data){
+		$this->items = $data;
+	}
+	private $row_callback = false;
+	function set_callback($function){
+		$this->row_callback = $function;
+	}
+	function set_sortable_columns($columns){
+		$this->_sortable_columns = $columns;
+	}
+	function set_columns($columns){
+		$this->columns = $columns;
+	}
+	function get_columns() {
+		return $this->columns;
+	}
+
+
+	function set_bulk_actions($actions) {
+		$this->bulk_actions = $actions;
+	}
+	function get_bulk_actions() {
+		return isset($this->bulk_actions) ? $this->bulk_actions : array();
+	}
+
+	function prepare_items() {
+
+		$columns               = $this->get_columns();
+		$hidden                = array();
+		$sortable              = $this->_sortable_columns; //
+		$this->_column_headers = array( $columns, $hidden, $sortable );
+		//usort( $this->example_data, array( $this, 'usort_reorder' ) );
+
+		$current_page = $this->get_pagenum();
+
+		$total_items  = count( $this->items );
+
+		// only ncessary because we have sample data
+		if($this->items_per_page) {
+			$this->found_data = array_slice($this->items, (($current_page - 1) * $this->items_per_page), $this->items_per_page);
+			if (!$this->found_data) $this->found_data = $this->items; // hack to stop the page overflow bug
+			$this->set_pagination_args( array(
+				'total_items' => $total_items, //WE have to calculate the total number of items
+				'per_page'    => $this->items_per_page //WE have to determine how many items to show on a page
+			) );
+		}else{
+			$this->found_data = $this->items;
+		}
+
+		$this->items = $this->found_data;
+		unset($this->found_data);
+
+	}
+
+
+} //class
