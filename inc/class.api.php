@@ -38,16 +38,17 @@ class TechSpace_API_Endpoint{
 	public function sniff_requests(){
 		global $wp;
 		if(isset($wp->query_vars['__api'])){
-			mail('dtbaker@gmail.com','API Debug: '.$_SERVER['REQUEST_URI'],var_export($_REQUEST,true));
 			if(!empty($_POST['secret']) && $_POST['secret'] == get_option( 'techspace_membership_api_secret' )){
 				if(empty($wp->query_vars['rfid']) && !empty($wp->query_vars['access']) && $wp->query_vars['access'] == 'all'){
 					// handle the ALL api request. /api/rfid/all
 					$this->handle_all();
 				}else{
+					mail('dtbaker@gmail.com','API Debug: '.$_SERVER['REQUEST_URI'],var_export($_REQUEST,true));
 					// handle the CHECKIN api request. /api/rfid/12345/door-3
 					$this->handle_request();
 				}
 			}else{
+				mail('dtbaker@gmail.com','API Invalid Secret: '.$_SERVER['REQUEST_URI'],var_export($_REQUEST,true));
 				$this->send_response('Invalid Secret');
 			}
 			exit;
@@ -66,21 +67,23 @@ class TechSpace_API_Endpoint{
 
 		$access = $wp->query_vars['access'];
 		$valid_access_term_id = false;
-		if($access != 'checkin') {
+		$valid_access_term_name = false;
+		//if($access != 'checkin') {
 			$available_access     = get_terms( 'dtbaker_membership_access', array(
 				'hide_empty' => false,
 			) );
 			foreach ( $available_access as $available_acces ) {
 				if ( $access && $available_acces->slug == $access ) {
 					$valid_access_term_id = $available_acces->term_id;
+					$valid_access_term_name = $available_acces->name;
 				}
 			}
 			if ( ! $access || ! $valid_access_term_id ) {
 				$this->send_response( '-3' );
 			}
-		}else{
-			$valid_access_term_id = -1; // for checkin in log.
-		}
+		//}else{
+		//	$valid_access_term_id = -1; // for checkin in log.
+		//}
 
 		$rfid_cards = get_posts(array('post_type'=>'dtbaker_rfid','post_status'=> 'publish', 'suppress_filters' => false, 'posts_per_page'=>-1));
 		$valid_rfid = false;
@@ -115,19 +118,19 @@ class TechSpace_API_Endpoint{
 				}
 			}
 			if($member_access) {
-				if($access == 'checkin'){
+				/*if($access == 'checkin'){
 					// return full member details for checkin:
 					$api_result = $this->get_member_api_result($member_access->ID);
-				}else{
+				}else{*/
 					// return expiry days for individual log:
 					$member_manager = dtbaker_member::get_instance();
 					$member_details = $member_manager->get_details( $member_access->ID );
 					$api_result     = $member_details['expiry_days'];
-				}
-				$this->send_slack_alert($member_access->ID, $access);
+				//}
+				$this->send_slack_alert($member_access->ID, $valid_access_term_name, $valid_rfid);
 			}else{
 				$api_result = -2; // no member for this card yet.
-				$this->send_slack_alert(false, $access);
+				$this->send_slack_alert(false, $valid_access_term_name, $valid_rfid);
 			}
 			// log a history for this card
 
@@ -153,7 +156,7 @@ class TechSpace_API_Endpoint{
 	}
 
 
-	public function send_slack_alert($member_id, $access_point){
+	public function send_slack_alert($member_id, $access_point, $rfid_id){
 
 		$setting = trim( get_option( 'techspace_membership_slack_api' ) );
 		if(strlen($setting)) {
@@ -164,10 +167,11 @@ class TechSpace_API_Endpoint{
 				if($member_notifications == 1){
 					return;
 				}else{
-					$message = "Member ".$member_details->post_title." just swiped against ".$access_point;
+					$message = "Member ".$member_details->post_title." used RFID card on ".$access_point;
 				}
 			}else{
-				$message = "Unknown RFID card just swiped against ".$access_point;
+				$rfid_details = get_post($rfid_id);
+				$message = "Unknown RFID card ".$rfid_details->post_title." on ".$access_point;
 			}
 			$ch   = curl_init( "https://slack.com/api/chat.postMessage" );
 			$data = http_build_query( [

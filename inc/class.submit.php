@@ -13,7 +13,7 @@ class TechSpace_Frontend_Submit{
 		add_shortcode('membership_signup_form', array($this, 'membership_signup_form'));
 	}
 
-	public $details = array('role'=>'','email'=>'','phone'=>'');
+	public $details = array('role'=>'','email'=>'','phone'=>'','emergency'=>'');
 
 	public function handle_submit(){
 

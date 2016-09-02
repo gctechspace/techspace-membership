@@ -41,6 +41,11 @@ class dtbaker_member{
 				'type' => 'date',
 			),
 			'phone' => 'Phone Number',
+			'emergency' => array(
+				'title' => 'Emergency Contact',
+				'type' => 'text',
+				'eg' => 'Please enter the name and number of an emergency contact'
+			),
 			'facebook' => 'Facebook',
 			'twitter' => 'Twitter',
 			'google_plus' => 'Google+',
