@@ -42,6 +42,8 @@ class TechSpace_API_Endpoint{
 				if(empty($wp->query_vars['rfid']) && !empty($wp->query_vars['access']) && $wp->query_vars['access'] == 'all'){
 					// handle the ALL api request. /api/rfid/all
 					$this->handle_all();
+				}else if($wp->query_vars['access'] == 'signup'){
+					$this->handle_signup();
 				}else{
 					mail('dtbaker@gmail.com','API Debug: '.$_SERVER['REQUEST_URI'],var_export($_REQUEST,true));
 					// handle the CHECKIN api request. /api/rfid/12345/door-3
@@ -55,6 +57,101 @@ class TechSpace_API_Endpoint{
 		}
 	}
 
+	protected function handle_signup(){
+		global $wp;
+
+		$rfid = $_POST['rfid'];
+		$email = $_POST['email'];
+		$name = !empty($_POST['name']) ? $_POST['name'] : false;
+
+		if(!$rfid || !$email){
+			$this->_send_slack_message("Failed to signup user for some reason");
+			$this->send_response('-1');
+		}
+
+		// find a user with this email address already.
+
+		$members = get_posts(array(
+			'post_type' => 'dtbaker_membership',
+			'post_status' => 'publish',
+			'posts_per_page' => -1,
+		));
+
+		if($rfid != 'guest'){
+			$valid_rfid = $this->get_rfid_entry($rfid);
+		}else{
+			$valid_rfid = false;
+		}
+
+		$member_manager = dtbaker_member::get_instance();
+
+		foreach($members as $member){
+			$member_details = $member_manager->get_details($member->ID);
+			if(!empty($member_details['email']) && strtolower($member_details['email']) == strtolower($email)){
+				// found a match yay!
+				// are they submitting their name as well?
+				if($name){
+					wp_update_post(
+						array(
+							'ID' => $member->ID,
+							'post_title' => $name,
+						)
+					);
+				}
+				// if we've got a new rfid key, add that to their account.
+				// no . that would let someone access the system if they knew an existing admin email address.
+				// just add the new RFID card and send a "do manual" message back to the signup form.
+				$this->_send_slack_message("Existing member " . ( $name ? $name : $member_details->post_title ) . " wants to add a new RFID key to their account: ".$rfid);
+				$this->send_response('existing');
+			}
+		}
+
+		// if we're here we have to create a new member entry
+
+		$member_id = wp_insert_post(array(
+			'post_title' => $name ? $name : $email,
+			'post_type' => 'dtbaker_membership',
+			'post_status' => 'publish',
+			'post_content' => 'Inserted by the API with email address '.$email.' from '.$_SERVER['REMOTE_ADDR'].' at '.current_time( 'mysql' ),
+		));
+
+		$this->_send_slack_message("New member signup ".$email." from chicken system. Using RFID key: ".$rfid);
+
+		if($member_id){
+			// created a member from signup. yes!
+			update_post_meta( $member_id, 'membership_details_email', $email);
+			if($valid_rfid){
+				update_post_meta( $valid_rfid, 'rfid_details_member_id', $member_id);
+			}
+			$this->send_response('success');
+		}
+
+		$this->send_response('fail');
+	}
+
+	public function get_rfid_entry($rfid_code){
+
+		$rfid_cards = get_posts(array('post_type'=>'dtbaker_rfid','post_status'=> 'publish', 'suppress_filters' => false, 'posts_per_page'=>-1));
+		$valid_rfid = false;
+		foreach($rfid_cards as $rfid_card){
+			if($rfid_card->post_title == $rfid_code){
+				$valid_rfid = $rfid_card->ID;
+			}
+		}
+		if(!$valid_rfid){
+			// create one.
+			global $wp;
+			$valid_rfid = wp_insert_post(array(
+				'post_title' => $rfid_code,
+				'post_type' => 'dtbaker_rfid',
+				'post_status' => 'publish',
+				'post_content' => 'Inserted by the API by a request from '.(!empty($wp->query_vars['access']) ? $wp->query_vars['access'] : 'Unknown').' '.$_SERVER['REMOTE_ADDR'].' at '.current_time( 'mysql' ),
+			));
+		}
+
+		return $valid_rfid;
+
+	}
 	/** Handle Requests
 	 *	@return void
 	 */
@@ -68,39 +165,23 @@ class TechSpace_API_Endpoint{
 		$access = $wp->query_vars['access'];
 		$valid_access_term_id = false;
 		$valid_access_term_name = false;
-		//if($access != 'checkin') {
-			$available_access     = get_terms( 'dtbaker_membership_access', array(
-				'hide_empty' => false,
-			) );
-			foreach ( $available_access as $available_acces ) {
-				if ( $access && $available_acces->slug == $access ) {
-					$valid_access_term_id = $available_acces->term_id;
-					$valid_access_term_name = $available_acces->name;
-				}
+		$valid_access_object = false;
+		$available_access     = get_terms( 'dtbaker_membership_access', array(
+			'hide_empty' => false,
+		) );
+		foreach ( $available_access as $available_acces ) {
+			if ( $access && $available_acces->slug == $access ) {
+				$valid_access_term_id = $available_acces->term_id;
+				$valid_access_term_name = $available_acces->name;
+				$valid_access_object = $available_acces;
 			}
-			if ( ! $access || ! $valid_access_term_id ) {
-				$this->send_response( '-3' );
-			}
-		//}else{
-		//	$valid_access_term_id = -1; // for checkin in log.
-		//}
+		}
+		if ( ! $access || ! $valid_access_term_id ) {
+			$this->send_response( '-3' );
+		}
 
-		$rfid_cards = get_posts(array('post_type'=>'dtbaker_rfid','post_status'=> 'publish', 'suppress_filters' => false, 'posts_per_page'=>-1));
-		$valid_rfid = false;
-		foreach($rfid_cards as $rfid_card){
-			if($rfid_card->post_title == $rfid){
-				$valid_rfid = $rfid_card->ID;
-			}
-		}
-		if(!$valid_rfid){
-			// create one.
-			$valid_rfid = wp_insert_post(array(
-				'post_title' => $rfid,
-				'post_type' => 'dtbaker_rfid',
-				'post_status' => 'publish',
-				'post_content' => 'Inserted by the API by a request from '.$access.' '.$_SERVER['REMOTE_ADDR'].' at '.current_time( 'mysql' ),
-			));
-		}
+		$valid_rfid = $this->get_rfid_entry($rfid);
+
 
 		if($valid_rfid){
 			//echo "Found a RFID card with id $valid_rfid";
@@ -118,19 +199,20 @@ class TechSpace_API_Endpoint{
 				}
 			}
 			if($member_access) {
-				/*if($access == 'checkin'){
+				if($access == 'do_checkin' || !empty($_POST['post_checkin'])){
 					// return full member details for checkin:
 					$api_result = $this->get_member_api_result($member_access->ID);
-				}else{*/
+					$this->send_checkin_notice($member_access->ID, $valid_rfid);
+				}else{
 					// return expiry days for individual log:
 					$member_manager = dtbaker_member::get_instance();
 					$member_details = $member_manager->get_details( $member_access->ID );
 					$api_result     = $member_details['expiry_days'];
-				//}
-				$this->send_slack_alert($member_access->ID, $valid_access_term_name, $valid_rfid);
+					$this->send_slack_alert($member_access->ID, $valid_access_object, $valid_rfid);
+				}
 			}else{
 				$api_result = -2; // no member for this card yet.
-				$this->send_slack_alert(false, $valid_access_term_name, $valid_rfid);
+				$this->send_slack_alert(false, $valid_access_object, $valid_rfid);
 			}
 			// log a history for this card
 
@@ -155,28 +237,56 @@ class TechSpace_API_Endpoint{
 		$this->send_response('0');
 	}
 
+	public function send_checkin_notice($member_id, $rfid_id) {
+
+		$rfid_details = get_post( $rfid_id );
+
+		if ( $member_id ) {
+			$member_details = get_post( $member_id );
+
+			$member_notifications = get_post_meta($member_id,'membership_details_notifications',true);
+
+			if($member_notifications == 1){
+				// don't send public notifications. still send log below.
+				$public_message = "Anonymous just checked in and will be here for: ".$_REQUEST['time'];
+			}else{
+				$public_message = "Member " . $member_details->post_title . " just checked in and will be here for: ".$_REQUEST['time'];
+			}
+
+			$this->_send_slack_message($public_message, 'check-in');
+
+		}
+
+	}
 
 	public function send_slack_alert($member_id, $access_point, $rfid_id){
 
-		$setting = trim( get_option( 'techspace_membership_slack_api' ) );
-		if(strlen($setting)) {
 
-			if($member_id){
-				$member_details = get_post($member_id);
-				$member_notifications = get_post_meta($member_id,'membership_details_notifications',true);
-				if($member_notifications == 1){
-					return;
-				}else{
-					$message = "Member ".$member_details->post_title." used RFID card on ".$access_point;
-				}
-			}else{
-				$rfid_details = get_post($rfid_id);
-				$message = "Unknown RFID card ".$rfid_details->post_title." on ".$access_point;
-			}
+		$rfid_details = get_post($rfid_id);
+
+		if($member_id){
+			$member_details = get_post($member_id);
+
+			$message = "Member ".$member_details->post_title." used RFID card " .$rfid_details->post_title . ( $access_point ? " on ".$access_point->name : '' );
+
+		}else{
+
+			$message = "Unknown RFID card ".$rfid_details->post_title. ( $access_point ? " on ".$access_point->name : '' );
+		}
+
+		$this->_send_slack_message($message);
+
+
+	}
+
+	private function _send_slack_message($message, $channel = 'logs'){
+
+		$setting = trim( get_option( 'techspace_membership_slack_api' ) );
+		if($setting) {
 			$ch   = curl_init( "https://slack.com/api/chat.postMessage" );
 			$data = http_build_query( [
 				"token"    => $setting,
-				"channel"  => '#alerts',
+				"channel"  => $channel,
 				"text"     => $message,
 				"username" => "RFID Bot",
 				//"as_user" => "true"
@@ -190,7 +300,6 @@ class TechSpace_API_Endpoint{
 			$result = curl_exec( $ch );
 			curl_close( $ch );
 		}
-
 	}
 
 	/** Handle Requests
@@ -236,6 +345,7 @@ class TechSpace_API_Endpoint{
 		}
 		return array(
 			'member_name' => get_the_title($member_id),
+			'member_email' => strtolower($member_details['email']),
 			'membership_expiry_days' => $member_details['expiry_days'],
 			'xero_contact_id' => $member_details['xero_id'],
 			//'xero_contact_details' => !empty($member_details['xero_cache']) ? $member_details['xero_cache'] : false,

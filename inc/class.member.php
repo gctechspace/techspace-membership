@@ -23,11 +23,18 @@ class dtbaker_member{
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
 		add_action( 'save_post', array( $this, 'save_meta_box' ) );
 
+		add_shortcode('membership_listing', array($this, 'membership_listing'));
+
 		$this->detail_fields = apply_filters('dtbaker_membership_detail_fields', array(
-			'role' => array(
+			'interests' => array(
 				'title' => 'Your Interests',
 				'type' => 'text',
 				'eg' => 'e.g. Programming, Electronics, 3D Printing, Drones'
+			),
+			'role' => array(
+				'title' => 'Committee Position',
+				'type' => 'text',
+				'eg' => 'e.g. Treasurer'
 			),
 			'rfid' => 'RFID Keys',
 			'xero_id' => 'Xero Contact',
@@ -51,12 +58,22 @@ class dtbaker_member{
 			'google_plus' => 'Google+',
 			'email' => 'Email Address',
 			'slack' => 'Slack',
+			'linkedin' => 'LinkedIn',
 			'notifications' => array(
 				'title' => 'Notifications',
 				'type' => 'select',
 				'options' => array(
 					'0' => 'Publish notifications on door openenings (e.g. to Slack)',
 					'1' => 'No public notifications',
+				)
+			),
+			'nickname' => 'Nickname',
+			'public_profile' => array(
+				'title' => 'Public Profile',
+				'type' => 'select',
+				'options' => array(
+					'0' => 'Hidden',
+					'1' => 'Shown',
 				)
 			),
 		));
@@ -66,6 +83,114 @@ class dtbaker_member{
 	public function admin_menu(){
 
 
+	}
+
+	public function membership_listing($atts=array()){
+		$members = get_posts(array(
+			'post_type' => 'dtbaker_membership',
+			'post_status' => 'publish',
+			'posts_per_page' => -1,
+		));
+		$member_details = array();
+		// get all member details.
+		foreach($members as $member) {
+			$details = $this->get_details( $member->ID );
+			if ( $details['expiry_days'] > 0 ) {
+				$details['member_id'] = $member->ID;
+				//isset( $details['public_profile'] ) && $details['public_profile'] &&
+				$member_details[ $member->ID ] = $details;
+			}
+		}
+
+		$members_sorted = array();
+		// grab steve first:
+		foreach($member_details as $member_id => $member_detail){
+			if($member_id == 485965){
+				$members_sorted[] = $member_detail;
+				unset($member_details[$member_id]);
+				break;
+			}
+		}
+		// grab other committe members.
+		foreach($member_details as $member_id => $member_detail){
+			if(!empty($member_detail['role']) && $member_detail['public_profile']){
+				$members_sorted[] = $member_detail;
+				unset($member_details[$member_id]);
+			}
+		}
+		// grab other public members.
+		foreach($member_details as $member_id => $member_detail){
+			if($member_detail['public_profile']){
+				$members_sorted[] = $member_detail;
+				unset($member_details[$member_id]);
+			}
+		}
+		// add everyone else as private.
+		foreach($member_details as $member_id => $member_detail){
+			$members_sorted[] = $member_detail;
+			unset($member_details[$member_id]);
+		}
+
+		$per_row = 3;
+		ob_start();
+		?>
+		<section class="tb-info-box tb-tax-info"><div class="inner"><p>Below is a list of some of our members. Come say hi at one of our Wednesday night meetings.</p>
+			</div>
+		</section>
+
+		<?php
+		while(count($members_sorted)){
+			?>
+			<div class="row techspace-members">
+				<?php for($x=0;$x<=$per_row;$x++){
+					$member_details = array_shift($members_sorted);
+					?>
+					<div class="col col-sm-3">
+						<div class="profile-wrapper">
+							<?php if($member_details['public_profile']){ ?>
+								<div class="profile-photo">
+									<?php echo get_the_post_thumbnail($member_details['member_id'], array(200, 200)); ?>
+								</div>
+								<h2 class="profile-name">
+									<?php echo esc_html($member_details['nickname']);?>
+								</h2>
+								<?php if(!empty($member_details['role'])){ ?>
+									<div class="profile-highlight">
+										<?php echo esc_html($member_details['role']);?>
+									</div>
+								<?php } ?>
+								<div class="profile-details">
+									<?php echo esc_html($member_details['interests']);?>
+								</div>
+								<div class="profile-contact">
+									<?php if(!empty($member_details['slack'])){ ?>
+										<a href="https://gctechspace.slack.com/team/<?php echo esc_attr($member_details['slack']);?>" target="_blank" class="fa fa-slack">&nbsp;</a>
+									<?php } ?>
+									<?php if(!empty($member_details['twitter'])){ ?>
+										<a href="https://twitter.com/<?php echo esc_attr($member_details['twitter']);?>" target="_blank" class="fa fa-twitter">&nbsp;</a>
+									<?php } ?>
+									<?php if(!empty($member_details['linkedin'])){ ?>
+										<a href="https://linkedin.com/in/<?php echo esc_attr($member_details['linkedin']);?>" target="_blank" class="fa fa-linkedin">&nbsp;</a>
+									<?php } ?>
+								</div>
+							<?php }else{ ?>
+								<div class="profile-photo">
+									<img src="https://gctechspace.org/wp-content/uploads/2016/09/member-unknown.jpg" width="200" height="200">
+								</div>
+								<h2 class="profile-name">
+									Member
+								</h2>
+								<div class="profile-details">
+									Profile Hidden
+								</div>
+							<?php } ?>
+						</div>
+					</div>
+				<?php } ?>
+			</div>
+			<?php
+		}
+		return ob_get_clean();
 	}
 
 
