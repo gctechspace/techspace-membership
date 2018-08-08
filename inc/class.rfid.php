@@ -1,6 +1,6 @@
 <?php
 
-class dtbaker_rfid{
+class dtbaker_rfid {
 
 
 	private static $instance = null;
@@ -18,72 +18,80 @@ class dtbaker_rfid{
 	public function init() {
 		add_action( 'admin_menu', array( $this, 'admin_menu' ) );
 		add_filter( 'manage_dtbaker_rfid_posts_columns', array( $this, 'manage_dtbaker_rfid_posts_columns' ) );
-		add_action( 'manage_dtbaker_rfid_posts_custom_column' , array( $this, 'manage_dtbaker_rfid_posts_custom_column' ), 10, 2 );
+		add_action( 'manage_dtbaker_rfid_posts_custom_column', array(
+			$this,
+			'manage_dtbaker_rfid_posts_custom_column'
+		), 10, 2 );
 		add_action( 'init', array( $this, 'register_custom_post_type' ) );
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
 		add_action( 'save_post', array( $this, 'save_meta_box' ) );
 
-		$this->detail_fields = apply_filters('dtbaker_rfid_detail_fields', array(
-			'member_id' => array(
+		$this->detail_fields = apply_filters( 'dtbaker_rfid_detail_fields', array(
+			'member_id'   => array(
 				'title' => 'Member',
-				'type' => 'select',
+				'type'  => 'select',
 			),
 			'last_access' => array(
 				'title' => 'Last Access',
-				'type' => 'date',
+				'type'  => 'date',
 			),
-		));
+		) );
 	}
 
-	public function admin_menu(){
+	public function admin_menu() {
 
-		$page = add_submenu_page('edit.php?post_type=dtbaker_membership', __( 'RFID History Log' ), __( 'RFID History Log' ), 'edit_pages',  'rfid_history' , array($this, 'show_rfid_history'));
+		$page = add_submenu_page( 'edit.php?post_type=dtbaker_membership', __( 'RFID History Log' ), __( 'RFID History Log' ), 'edit_pages', 'rfid_history', array(
+			$this,
+			'show_rfid_history'
+		) );
 
 	}
 
-	public function show_rfid_history(){
+	public function show_rfid_history() {
 		?>
 		<div class="wrap">
 			<h1>RFID History Log</h1>
 
 			<?php
-ini_set('display_errors',true);
-ini_set('error_reporting',E_ALL);
-			$myListTable = new TechSpaceRFIDHistoryTable(array(
+			ini_set( 'display_errors', true );
+			ini_set( 'error_reporting', E_ALL );
+			$myListTable = new TechSpaceRFIDHistoryTable( array(
 				'screen' => 'rfid_history'
-			));
+			) );
 			global $wpdb;
 			$history = $wpdb->get_results(
 				"SELECT * 
 				FROM `" . $wpdb->prefix . "ts_rfid` ORDER BY ts_rfid DESC"
-				,ARRAY_A
+				, ARRAY_A
 			);
-			$myListTable->set_data($history);
-			$myListTable->set_callback(function($item, $column_name){
-				switch($column_name){
+			$myListTable->set_data( $history );
+			$myListTable->set_callback( function ( $item, $column_name ) {
+				switch ( $column_name ) {
 					case 'member_id':
-						if($item['member_id']){
-							$member = get_post($item['member_id']);
-							if($member){
-								return sprintf('<a href="%s">%s</a>', esc_url(get_edit_post_link($member->ID)), esc_html($member->post_title));
+						if ( $item['member_id'] ) {
+							$member = get_post( $item['member_id'] );
+							if ( $member ) {
+								return sprintf( '<a href="%s">%s</a>', esc_url( get_edit_post_link( $member->ID ) ), esc_html( $member->post_title ) );
 							}
 						}
+
 						return 'N/A';
 						break;
 					case 'rfid_id':
-						if($item['rfid_id']){
-							$member = get_post($item['rfid_id']);
-							if($member){
-								return sprintf('<a href="%s">%s</a>', esc_url(get_edit_post_link($member->ID)), esc_html($member->post_title));
+						if ( $item['rfid_id'] ) {
+							$member = get_post( $item['rfid_id'] );
+							if ( $member ) {
+								return sprintf( '<a href="%s">%s</a>', esc_url( get_edit_post_link( $member->ID ) ), esc_html( $member->post_title ) );
 							}
 						}
+
 						return 'N/A';
 						break;
 					case 'time':
-						return date('Y-m-d H:i:s', $item['access_time']);
+						return date( 'Y-m-d H:i:s', $item['access_time'] );
 						break;
 					case 'access':
-						if($item['access_id'] > 0) {
+						if ( $item['access_id'] > 0 ) {
 							$available_access = get_terms( 'dtbaker_membership_access', array(
 								'hide_empty' => false,
 							) );
@@ -92,14 +100,15 @@ ini_set('error_reporting',E_ALL);
 									return $available_acces->slug;
 								}
 							}
+
 							return 'Unknown';
-						}else{
+						} else {
 							return 'Checkin';
 						}
 
 						break;
 				}
-			});
+			} );
 			$myListTable->prepare_items();
 			$myListTable->display();
 			?>
@@ -109,36 +118,37 @@ ini_set('error_reporting',E_ALL);
 	}
 
 
-	public function manage_dtbaker_rfid_posts_columns( $columns ){
+	public function manage_dtbaker_rfid_posts_columns( $columns ) {
 		unset( $columns['author'] );
 		unset( $columns['date'] );
-		$columns['member_id'] = __( 'Member' );
+		$columns['member_id']   = __( 'Member' );
 		$columns['last_access'] = __( 'Last Used' );
+
 		return $columns;
 	}
 
-	public function manage_dtbaker_rfid_posts_custom_column( $column, $post_id ){
-		$details = $this->get_details($post_id);
-		switch($column){
+	public function manage_dtbaker_rfid_posts_custom_column( $column, $post_id ) {
+		$details = $this->get_details( $post_id );
+		switch ( $column ) {
 			case 'member_id':
 				// find which member has this rfid key with a custom query.
-				if($details['member_id']){
-					$member = get_post($details['member_id']);
-					if($member){
-						printf('<a href="%s">%s</a>', esc_url(get_edit_post_link($member->ID)), esc_html($member->post_title));
+				if ( $details['member_id'] ) {
+					$member = get_post( $details['member_id'] );
+					if ( $member ) {
+						printf( '<a href="%s">%s</a>', esc_url( get_edit_post_link( $member->ID ) ), esc_html( $member->post_title ) );
 					}
 				}
 				break;
 			case 'last_access':
-				if(!empty($details[$column])){
-					echo date('Y-m-d H:i:s',$details[$column]);
+				if ( ! empty( $details[ $column ] ) ) {
+					echo date( 'Y-m-d H:i:s', $details[ $column ] );
 					//echo ' ('.DtbakerMembershipManager::get_instance()->fuzzy_date($details[$column]).')';
 				}
 				break;
 			default:
-				if(!empty($details[$column])){
-					echo esc_html($details[$column]);
-				}else{
+				if ( ! empty( $details[ $column ] ) ) {
+					echo esc_html( $details[ $column ] );
+				} else {
 					echo 'N/A';
 				}
 				break;
@@ -146,11 +156,12 @@ ini_set('error_reporting',E_ALL);
 		}
 	}
 
-	public function get_details($post_id){
+	public function get_details( $post_id ) {
 		$detail_fields = array();
-		foreach($this->detail_fields as $key=>$val){
-			$detail_fields[$key] = get_post_meta( $post_id, 'rfid_details_'.$key, true );
+		foreach ( $this->detail_fields as $key => $val ) {
+			$detail_fields[ $key ] = get_post_meta( $post_id, 'rfid_details_' . $key, true );
 		}
+
 		return $detail_fields;
 	}
 
@@ -158,34 +169,40 @@ ini_set('error_reporting',E_ALL);
 
 		wp_nonce_field( 'dtbaker_rfid_metabox_nonce', 'dtbaker_rfid_metabox_nonce' );
 
-		$rfid_details = $this->get_details($post->ID);
-		foreach($this->detail_fields as $field_id => $field_data){
+		$rfid_details = $this->get_details( $post->ID );
+		foreach ( $this->detail_fields as $field_id => $field_data ) {
 
 
-			if(!is_array($field_data)){
+			if ( ! is_array( $field_data ) ) {
 				$field_data = array(
 					'title' => $field_data,
-					'type' => 'text'
+					'type'  => 'text'
 				);
 			}
 
 			?>
 			<p>
-				<label for="member_detail_<?php echo esc_attr( $field_id );?>"><?php echo esc_html($field_data['title']); ?></label>
-				<?php switch($field_id){
+				<label
+					for="member_detail_<?php echo esc_attr( $field_id ); ?>"><?php echo esc_html( $field_data['title'] ); ?></label>
+				<?php switch ( $field_id ) {
 					case 'member_id':
-						DtbakerMembershipManager::get_instance()->generate_post_select( 'rfid_details[member_id]', 'dtbaker_membership', $rfid_details[$field_id]);
+						DtbakerMembershipManager::get_instance()->generate_post_select( 'rfid_details[member_id]', 'dtbaker_membership', $rfid_details[ $field_id ] );
 						break;
 					default:
-						switch($field_data['type']){
+						switch ( $field_data['type'] ) {
 							case 'text':
 								?>
-								<input type="text" name="rfid_details[<?php echo esc_attr( $field_id );?>]" id="member_detail_<?php echo esc_attr( $field_id );?>" value="<?php echo esc_attr( isset($rfid_details[$field_id]) ? $rfid_details[$field_id] : '' ); ?>">
+								<input type="text" name="rfid_details[<?php echo esc_attr( $field_id ); ?>]"
+								       id="member_detail_<?php echo esc_attr( $field_id ); ?>"
+								       value="<?php echo esc_attr( isset( $rfid_details[ $field_id ] ) ? $rfid_details[ $field_id ] : '' ); ?>">
 								<?php
 								break;
 							case 'date':
 								?>
-								<input type="text" name="rfid_details[<?php echo esc_attr( $field_id );?>]" id="member_detail_<?php echo esc_attr( $field_id );?>" value="<?php echo esc_attr( !empty($rfid_details[$field_id]) ? date('Y-m-d',$rfid_details[$field_id]) : '' ); ?>" class="dtbaker-datepicker">
+								<input type="text" name="rfid_details[<?php echo esc_attr( $field_id ); ?>]"
+								       id="member_detail_<?php echo esc_attr( $field_id ); ?>"
+								       value="<?php echo esc_attr( ! empty( $rfid_details[ $field_id ] ) ? date( 'Y-m-d', $rfid_details[ $field_id ] ) : '' ); ?>"
+								       class="dtbaker-datepicker">
 								<?php
 								break;
 						}
@@ -196,7 +213,7 @@ ini_set('error_reporting',E_ALL);
 		}
 
 	}
-	
+
 
 	public function add_meta_box() {
 
@@ -234,12 +251,12 @@ ini_set('error_reporting',E_ALL);
 
 		if ( isset( $_POST['rfid_details'] ) && is_array( $_POST['rfid_details'] ) ) {
 			$rfid_details = $_POST['rfid_details'];
-			foreach($this->detail_fields as $key=>$val){
-				if(isset($rfid_details[$key])) {
+			foreach ( $this->detail_fields as $key => $val ) {
+				if ( isset( $rfid_details[ $key ] ) ) {
 					if ( is_array( $val ) && isset( $val['type'] ) && $val['type'] == 'date' ) {
 						$rfid_details[ $key ] = strtotime( $rfid_details[ $key ] );
 					}
-					update_post_meta( $post_id, 'rfid_details_'.$key, isset($rfid_details[$key]) ? $rfid_details[$key] : '');
+					update_post_meta( $post_id, 'rfid_details_' . $key, isset( $rfid_details[ $key ] ) ? $rfid_details[ $key ] : '' );
 				}
 			}
 
@@ -248,9 +265,7 @@ ini_set('error_reporting',E_ALL);
 	}
 
 
-
 	public function register_custom_post_type() {
-
 
 
 		$labels = array(

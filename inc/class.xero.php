@@ -1,8 +1,8 @@
 <?php
 
-define ( "XRO_APP_TYPE", "Private" );
+define( "XRO_APP_TYPE", "Private" );
 
-class dtbaker_xero{
+class dtbaker_xero {
 
 	private static $instance = null;
 
@@ -14,73 +14,75 @@ class dtbaker_xero{
 		return self::$instance;
 	}
 
-	private function _xero_api_init(){
+	public function _xero_api_init() {
 
-		require_once plugin_dir_path(__DIR__).'XeroOAuth-PHP/lib/XeroOAuth.php';
+		require_once plugin_dir_path( __DIR__ ) . 'XeroOAuth-PHP/lib/XeroOAuth.php';
 
 		$useragent = "GCTechSpace WordPress Plugin";
 
-		$signatures = array (
-			'consumer_key' => get_option( 'techspace_membership_consumer_key' ),
-			'shared_secret' => get_option( 'techspace_membership_secret_key' ),
-			'public_key' => get_option( 'techspace_membership_public_key' ),
-			'private_key' => get_option( 'techspace_membership_private_key' ),
+		$signatures = array(
+			'consumer_key'    => get_option( 'techspace_membership_consumer_key' ),
+			'shared_secret'   => get_option( 'techspace_membership_secret_key' ),
+			'public_key'      => get_option( 'techspace_membership_public_key' ),
+			'private_key'     => get_option( 'techspace_membership_private_key' ),
 			// API versions
-			'core_version' => '2.0',
+			'core_version'    => '2.0',
 			'payroll_version' => '1.0',
-			'file_version' => '1.0',
+			'file_version'    => '1.0',
 		);
 
-		$XeroOAuth = new XeroOAuth ( array_merge ( array (
+		$XeroOAuth = new XeroOAuth ( array_merge( array(
 			'application_type' => XRO_APP_TYPE,
-			'oauth_callback' => 'oob', // not needed for private app
-			'user_agent' => $useragent
+			'oauth_callback'   => 'oob', // not needed for private app
+			'user_agent'       => $useragent
 		), $signatures ) );
 
-		$XeroOAuth->config ['access_token'] = $XeroOAuth->config ['consumer_key'];
+		$XeroOAuth->config ['access_token']        = $XeroOAuth->config ['consumer_key'];
 		$XeroOAuth->config ['access_token_secret'] = $XeroOAuth->config ['shared_secret'];
+
 		return $XeroOAuth;
 	}
 
-	public function get_all_contacts( $force = false ){
-		$XeroOAuth = $this->_xero_api_init();
+	public function get_all_contacts( $force = false ) {
+		$XeroOAuth    = $this->_xero_api_init();
 		$all_contacts = get_transient( 'techspace_xero_contacts' );
-		if(!$force && $all_contacts && is_array($all_contacts)){
+		if ( ! $force && $all_contacts && is_array( $all_contacts ) ) {
 			return $all_contacts;
-		}else{
+		} else {
 			$all_contacts = array();
 		}
-		$response = $XeroOAuth->request('GET', $XeroOAuth->url('Contacts', 'core'), array());
-		if ($XeroOAuth && isset($XeroOAuth->response['code']) && $XeroOAuth->response['code'] == 200) {
-			$contacts = $XeroOAuth->parseResponse($XeroOAuth->response['response'], $XeroOAuth->response['format']);
-			if(count($contacts->Contacts[0]) >= 1){
-				foreach($contacts->Contacts[0] as $contact){
-					$contact_id = (string)$contact->ContactID;
-					$all_contacts[$contact_id] = array(
-						'name' => !empty($contact->Name) ? (string)$contact->Name : '',
-						'email' => !empty($contact->EmailAddress) ? (string)$contact->EmailAddress : '',
+		$response = $XeroOAuth->request( 'GET', $XeroOAuth->url( 'Contacts', 'core' ), array() );
+		if ( $XeroOAuth && isset( $XeroOAuth->response['code'] ) && $XeroOAuth->response['code'] == 200 ) {
+			$contacts = $XeroOAuth->parseResponse( $XeroOAuth->response['response'], $XeroOAuth->response['format'] );
+			if ( count( $contacts->Contacts[0] ) >= 1 ) {
+				foreach ( $contacts->Contacts[0] as $contact ) {
+					$contact_id                  = (string) $contact->ContactID;
+					$all_contacts[ $contact_id ] = array(
+						'name'  => ! empty( $contact->Name ) ? (string) $contact->Name : '',
+						'email' => ! empty( $contact->EmailAddress ) ? (string) $contact->EmailAddress : '',
 					);
 				}
 			}
 		} else {
 			// log error?
 		}
-		if($all_contacts){
+		if ( $all_contacts ) {
 			// sort by name.
-			uasort($all_contacts, function($a, $b) {
-				return strnatcasecmp($a['name'], $b['name']);
-			});
+			uasort( $all_contacts, function ( $a, $b ) {
+				return strnatcasecmp( $a['name'], $b['name'] );
+			} );
 			set_transient( 'techspace_xero_contacts', $all_contacts, 12 * HOUR_IN_SECONDS );
 		}
+
 		return $all_contacts;
 	}
 
-	public function get_contact_invoices( $contact_id,  $force = false ) {
+	public function get_contact_invoices( $contact_id, $force = false ) {
 		$XeroOAuth    = $this->_xero_api_init();
 		$all_invoices = get_transient( 'techspace_xero_invoices' );
 		if ( ! $force && $all_invoices && isset( $all_invoices[ $contact_id ] ) ) {
 			return $all_invoices[ $contact_id ];
-		} else if(!$all_invoices){
+		} else if ( ! $all_invoices ) {
 			$all_invoices = array();
 		}
 		$response = $XeroOAuth->request( 'GET', $XeroOAuth->url( 'Invoices', 'core' ), array(
@@ -91,20 +93,24 @@ class dtbaker_xero{
 			if ( count( $invoices->Invoices[0] ) >= 1 ) {
 				foreach ( $invoices->Invoices[0] as $invoice ) {
 					if ( $invoice ) {
-						$invoice_id   = (string) $invoice->InvoiceID;
-						$invoice_type = (string) $invoice->Type;
-						if ( $invoice_type == 'ACCREC' ) {
+						$invoice_id     = (string) $invoice->InvoiceID;
+						$invoice_type   = (string) $invoice->Type;
+						$invoice_status = (string) $invoice->Status;
+						if ( $invoice_status === 'VOIDED' && isset( $all_invoices[ $contact_id ][ $invoice_id ] ) ) {
+							unset( $all_invoices[ $contact_id ][ $invoice_id ] );
+						}
+						if ( $invoice_type == 'ACCREC' && $invoice_status != 'VOIDED' ) {
 							if ( ! isset( $all_invoices[ $contact_id ] ) ) {
 								$all_invoices[ $contact_id ] = array();
 							}
 							$all_invoices[ $contact_id ][ $invoice_id ] = array(
-								'number'  => (string) $invoice->InvoiceNumber,
-								'time'    => strtotime( (string) $invoice->Date ),
-								'paid_time'    => isset($invoice->FullyPaidOnDate) ? strtotime( (string) $invoice->FullyPaidOnDate ) : false,
-								'status'  => (string) $invoice->Status,
-								'total'   => (string) $invoice->Total,
-								'due'     => (string) $invoice->AmountDue,
-								'emailed' => ( (string) $invoice->SentToContact === "true" ), // convert string to bool
+								'number'    => (string) $invoice->InvoiceNumber,
+								'time'      => strtotime( (string) $invoice->Date ),
+								'paid_time' => isset( $invoice->FullyPaidOnDate ) ? strtotime( (string) $invoice->FullyPaidOnDate ) : false,
+								'status'    => $invoice_status,
+								'total'     => (string) $invoice->Total,
+								'due'       => (string) $invoice->AmountDue,
+								'emailed'   => ( (string) $invoice->SentToContact === "true" ), // convert string to bool
 							);
 						}
 					}
@@ -125,19 +131,19 @@ class dtbaker_xero{
 	}
 
 	public function get_line_items( $force = false ) {
-		$XeroOAuth    = $this->_xero_api_init();
-		$response = $XeroOAuth->request( 'GET', $XeroOAuth->url( 'Items', 'core' ), array() );
+		$XeroOAuth  = $this->_xero_api_init();
+		$response   = $XeroOAuth->request( 'GET', $XeroOAuth->url( 'Items', 'core' ), array() );
 		$line_items = array();
 		if ( $XeroOAuth && isset( $XeroOAuth->response['code'] ) && $XeroOAuth->response['code'] == 200 ) {
 			$api_results = $XeroOAuth->parseResponse( $XeroOAuth->response['response'], $XeroOAuth->response['format'] );
 			if ( count( $api_results->Items[0] ) >= 1 ) {
 				foreach ( $api_results->Items[0] as $api_result ) {
 					if ( $api_result ) {
-						$id = (string)$api_result->ItemID;
+						$id                = (string) $api_result->ItemID;
 						$line_items[ $id ] = array(
-							'code'  => (string) $api_result->Code,
-							'description'  => (string) $api_result->Description,
-							'price'  => (string) $api_result->SalesDetails->UnitPrice,
+							'code'        => (string) $api_result->Code,
+							'description' => (string) $api_result->Description,
+							'price'       => (string) $api_result->SalesDetails->UnitPrice,
 						);
 					}
 				}
@@ -149,26 +155,26 @@ class dtbaker_xero{
 		return $line_items;
 	}
 
-	public function create_contact($details){
-		$xml = "<Contacts>
+	public function create_contact( $details ) {
+		$xml       = "<Contacts>
          <Contact>
-           <Name>". esc_html($details['name'])."</Name>
-           <EmailAddress>". $details['email']."</EmailAddress>
+           <Name>" . esc_html( $details['name'] ) . "</Name>
+           <EmailAddress>" . $details['email'] . "</EmailAddress>
            <Phones>
 		      <Phone>
 		        <PhoneType>DEFAULT</PhoneType>
-		        <PhoneNumber>". esc_html($details['phone'])."</PhoneNumber>
+		        <PhoneNumber>" . esc_html( $details['phone'] ) . "</PhoneNumber>
 		      </Phone>
 	      </Phones>
          </Contact>
        </Contacts>";
-		$XeroOAuth    = $this->_xero_api_init();
-		$response = $XeroOAuth->request('POST', $XeroOAuth->url('Contacts', 'core'), array(), $xml);
-		if ($XeroOAuth->response['code'] == 200) {
-			$contact = $XeroOAuth->parseResponse($XeroOAuth->response['response'], $XeroOAuth->response['format']);
-			if (count($contact->Contacts[0])>0) {
-				return (string)$contact->Contacts[0]->Contact->ContactID;
-			}else{
+		$XeroOAuth = $this->_xero_api_init();
+		$response  = $XeroOAuth->request( 'POST', $XeroOAuth->url( 'Contacts', 'core' ), array(), $xml );
+		if ( $XeroOAuth->response['code'] == 200 ) {
+			$contact = $XeroOAuth->parseResponse( $XeroOAuth->response['response'], $XeroOAuth->response['format'] );
+			if ( count( $contact->Contacts[0] ) > 0 ) {
+				return (string) $contact->Contacts[0]->Contact->ContactID;
+			} else {
 				return false;
 			}
 		} else {
@@ -176,33 +182,34 @@ class dtbaker_xero{
 		}
 
 	}
-	public function create_invoice($details){
-		$xml = "<Invoices>
+
+	public function create_invoice( $details ) {
+		$xml       = "<Invoices>
           <Invoice>
             <Type>ACCREC</Type>
             <Contact>
-              <ContactID>".$details['contact_id']."</ContactID>
+              <ContactID>" . $details['contact_id'] . "</ContactID>
             </Contact>
-            <Date>".$details['date']."</Date>
-            <DueDate>".$details['due_date']."</DueDate>
+            <Date>" . $details['date'] . "</Date>
+            <DueDate>" . $details['due_date'] . "</DueDate>
             <LineAmountTypes>Inclusive</LineAmountTypes>
             <LineItems>
               <LineItem>
-                <ItemCode>".$details['item_code']."</ItemCode>
+                <ItemCode>" . $details['item_code'] . "</ItemCode>
                 <TaxType>OUTPUT</TaxType>
-                <Description>".$details['description']."</Description>
+                <Description>" . $details['description'] . "</Description>
               </LineItem>
             </LineItems>
             <Status>AUTHORISED</Status>
           </Invoice>
         </Invoices>";
-		$XeroOAuth    = $this->_xero_api_init();
-		$response = $XeroOAuth->request('POST', $XeroOAuth->url('Invoices', 'core'), array(), $xml);
-		if ($XeroOAuth->response['code'] == 200) {
-			$invoice = $XeroOAuth->parseResponse($XeroOAuth->response['response'], $XeroOAuth->response['format']);
-			if (count($invoice->Invoices[0])>0) {
-				return (string)$invoice->Invoices[0]->Invoice->InvoiceID;
-			}else{
+		$XeroOAuth = $this->_xero_api_init();
+		$response  = $XeroOAuth->request( 'POST', $XeroOAuth->url( 'Invoices', 'core' ), array(), $xml );
+		if ( $XeroOAuth->response['code'] == 200 ) {
+			$invoice = $XeroOAuth->parseResponse( $XeroOAuth->response['response'], $XeroOAuth->response['format'] );
+			if ( count( $invoice->Invoices[0] ) > 0 ) {
+				return (string) $invoice->Invoices[0]->Invoice->InvoiceID;
+			} else {
 				return false;
 			}
 		} else {
