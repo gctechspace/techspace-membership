@@ -41,7 +41,7 @@ class dtbaker_member_stats {
 
 
 		$start = strtotime( "2016-07-01" );
-		$end   = strtotime( "2018-06-30" );
+		$end   = strtotime( "2019-10-30" );
 
 		$member_count        = count( $members );
 		$paying_member_count = array();
@@ -90,6 +90,7 @@ class dtbaker_member_stats {
 						$expected = false;
 						switch ( (int) $invoice['total'] ) {
 							case 225;
+							case 250;
 								$expected = '+12 months';
 								break;
 							case 25;

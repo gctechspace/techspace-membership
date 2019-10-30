@@ -193,6 +193,7 @@ class TechSpace_API_Endpoint{
 
 		$device_name = $this->_get_device_name($door_name);
 
+		if($door_name=='ci')return;
 		$message = "Device: `" . $door_name . '` = `' . $door_status .'`' . ( $device_name ? ' ('.$device_name.')' : '');
 
 		$this->_send_slack_message($message, 'logs');

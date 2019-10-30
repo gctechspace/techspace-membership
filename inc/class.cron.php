@@ -89,6 +89,9 @@ class dtbaker_member_cron {
 						$email        = strtolower( $member['profile']['email'] );
 						$member_match = false;
 						foreach ( $all_members as $member_id => $member_data ) {
+							if ( ! empty( $member_data['automatic_type'] ) && $member_data['automatic_type'] == 'ignore' ) {
+								continue;
+							}
 							if ( ! empty( $member_data['email'] ) && strtolower( $member_data['email'] ) == $email ) {
 								$member_match = $member_id;
 								break;
@@ -97,6 +100,9 @@ class dtbaker_member_cron {
 						if ( ! $member_match ) {
 							// see if we've got a match on slack username.
 							foreach ( $all_members as $member_id => $member_data ) {
+								if ( ! empty( $member_data['automatic_type'] ) && $member_data['automatic_type'] == 'ignore' ) {
+									continue;
+								}
 								$member_slack_username = get_post_meta( $member_id, 'membership_details_' . 'slack', true );
 								if ( $member_slack_username && strtolower( $member_slack_username ) == strtolower( $member['name'] ) ) {
 									$member_match = $member_id;
@@ -165,7 +171,11 @@ class dtbaker_member_cron {
 		foreach ( $members as $member ) {
 
 			//		    if($member->ID != 485965)continue; // steve test.
-			$membership_details               = $member_manager->get_details( $member->ID );
+			$membership_details = $member_manager->get_details( $member->ID );
+
+			if ( ! empty( $membership_details['automatic_type'] ) && $membership_details['automatic_type'] == 'ignore' ) {
+				continue;
+			}
 			$membership_details['member_end'] = (int) $membership_details['member_end'];
 
 			$slack_username    = get_post_meta( $member->ID, 'membership_details_' . 'slack', true );
@@ -272,7 +282,12 @@ class dtbaker_member_cron {
 			$last_notifications = array();
 		}
 		foreach ( $members as $member ) {
-			$membership_details               = $member_manager->get_details( $member->ID );
+			$membership_details = $member_manager->get_details( $member->ID );
+
+			if ( ! empty( $membership_details['automatic_type'] ) && $membership_details['automatic_type'] == 'ignore' ) {
+				continue;
+			}
+
 			$membership_details['member_end'] = (int) $membership_details['member_end'];
 			if ( $membership_details['member_end'] < time() && ! isset( $last_notifications[ $member->ID ] ) ) {
 				// expired membership. see if they have checked in recently.
@@ -340,6 +355,10 @@ class dtbaker_member_cron {
 		foreach ( $members as $member ) {
 			$membership_details = $member_manager->get_details( $member->ID );
 			if ( ! empty( $membership_details['xero_id'] ) ) {
+
+				if ( ! empty( $membership_details['automatic_type'] ) && ( $membership_details['automatic_type'] == 'manual_invoice' || $membership_details['automatic_type'] == 'ignore' ) ) {
+					continue;
+				}
 				$invoices = dtbaker_xero::get_instance()->get_contact_invoices( $membership_details['xero_id'], false );
 				if ( $invoices ) {
 
@@ -347,7 +366,20 @@ class dtbaker_member_cron {
 					foreach ( $invoices as $invoice_id => $invoice ) {
 						if ( ! $invoice['emailed'] && ! $invoice['paid_time'] ) {
 
-							if ( ! isset( $last_notifications[ $invoice_id ] ) ) {
+							continue; // skip all this stuff now.
+
+							if ( ! empty( $membership_details['automatic_type'] ) && $membership_details['automatic_type'] == 'invoice_no_email' ) {
+								$this->send_notification( "NOT emailing invoice to " . $member->post_title . " due to member settings.\n$" . $invoice['total'] . " on " . date( 'Y-m-d', $invoice['time'] ) . ". \nXero Link: https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=$invoice_id ", 'moneybag', $member->ID );
+								continue;
+							}
+
+							if ( dtbaker_xero::get_instance()->email_invoice( $membership_details['xero_id'], $invoice_id ) ) {
+								$this->send_notification( "Successfully emailed invoice to " . $member->post_title . ".\n$" . $invoice['total'] . " on " . date( 'Y-m-d', $invoice['time'] ) . ". \nXero Link: https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=$invoice_id ", 'moneybag', $member->ID );
+							} else {
+								$this->send_notification( "ERROR! Failed to email invoice to " . $member->post_title . ".\n$" . $invoice['total'] . " on " . date( 'Y-m-d', $invoice['time'] ) . ". \nXero Link: https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=$invoice_id ", 'moneybag', $member->ID );
+							}
+
+							/*if ( ! isset( $last_notifications[ $invoice_id ] ) ) {
 								$last_notifications[ $invoice_id ] = true;
 
 								//								echo "New Invoice for " . $member->post_title . " has been generated and needs to be emailed.<br>\nhttps://gctechspace.org/wp-admin/post.php?post=".$member->ID."&action=edit<br>\n$" . $invoice['total'] . " on " . date( 'Y-m-d', $invoice['time'] ) . ". \nSomeone please manually email invoice to member: https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=$invoice_id " . '<br><br>';
@@ -357,7 +389,7 @@ class dtbaker_member_cron {
 								// we have previously sent a notification, check if it's marked as sent.
 								echo "Checkin invoices...<br>";
 								$recheck_invoices = true;
-							}
+							}*/
 						}
 					}
 					if ( $recheck_invoices ) {
@@ -444,6 +476,14 @@ class dtbaker_member_cron {
 		foreach ( $members as $member ) {
 			// check for any new invoices for this member.
 			$membership_details = $member_manager->get_details( $member->ID );
+
+			if ( ! empty( $membership_details['automatic_type'] ) && $membership_details['automatic_type'] == 'ignore' ) {
+				if ( $debug ) {
+					echo "\nIgnoring member (" . $member->ID . ") " . $member->post_title . "\n";
+				}
+				continue;
+			}
+
 			if ( $debug ) {
 				echo "\nChecking status for member (" . $member->ID . ") " . $member->post_title . "\n";
 				if ( $membership_details['member_start'] ) {
@@ -454,114 +494,125 @@ class dtbaker_member_cron {
 				}
 			}
 
+			$invoices = [];
 			if ( ! empty( $membership_details['xero_id'] ) ) {
-				$invoices = dtbaker_xero::get_instance()->get_contact_invoices( $membership_details['xero_id'], true );
+				$invoices = $invoices + dtbaker_xero::get_instance()->get_contact_invoices( $membership_details['xero_id'], true );
+			}
+			if ( ! empty( $membership_details['square_id'] ) ) {
+				$invoices = $invoices + TechSpace_Square::get_instance()->get_contact_invoices( $membership_details['square_id'], true );
+			}
 
-				if ( $invoices ) {
-					if ( $debug ) {
-						echo " Found " . count( $invoices ) . " invoices, saving to cache. \n";
-					}
-					/*Array
-					(
-					    [number] => INV-0069
-					    [time] => 1467072000
-					    [paid_time] => 1467072000
-					    [status] => PAID
-					    [total] => 123.75
-					    [due] => 0.00
-					    [emailed] => 1
-					)*/
-					$member_manager->cache_member_invoices( $member->ID, $invoices );
-					foreach ( $invoices as $invoice_id => $invoice ) {
-						if ( ! empty( $invoice['paid_time'] ) && $invoice['status'] == 'PAID' ) {
-							echo " - Found a $" . $invoice['total'] . " paid invoice (paid on " . date( 'Y-m-d', $invoice['paid_time'] ) . "): $invoice_id \n";
-							// check how many days this invoice payment will get the user.
-							foreach ( $member_types as $member_type ) {
-								if ( $member_type['price'] == $invoice['total'] ) {
-									if ( $debug ) {
-										echo " -- this invoice is for membership type: " . $member_type['name'] . " for " . $member_type['months'] . " months. \n";
-									}
-									//									$new_member_date = strtotime('+'.$member_type['months'].' months',$invoice['paid_time']);
-									$new_member_date = strtotime( '+' . $member_type['months'] . ' months', $invoice['time'] );
-									if ( $debug ) {
-										echo " -- this invoice will extend the member date until " . date( 'Y-m-d', $new_member_date ) . " \n";
-									}
-									if ( empty( $membership_details['member_start'] ) ) {
-										//										if($debug)echo " -- will set the membership start date to " . date('Y-m-d',$invoice['paid_time']) ." \n";
-										if ( $debug ) {
-											echo " -- will set the membership start date to " . date( 'Y-m-d', $invoice['time'] ) . " \n";
-										}
-										//										$membership_details['member_start'] = $invoice['paid_time'];
-										$membership_details['member_start'] = $invoice['time'];
-										update_post_meta( $member->ID, 'membership_details_member_start', $membership_details['member_start'] );
-									}
-									if ( empty( $membership_details['member_end'] ) || $membership_details['member_end'] < $new_member_date ) {
-										if ( $debug ) {
-											echo " -- will set the membership end date to " . date( 'Y-m-d', $new_member_date ) . " \n";
-										}
-										$membership_details['member_end'] = $new_member_date;
-										update_post_meta( $member->ID, 'membership_details_member_end', $membership_details['member_end'] );
-										$this->send_notification( "Member " . $member->post_title . ' extended to ' . date( 'Y-m-d', $new_member_date ) . ' after receiving a ' . $member_type['months'] . ' month payment for $' . $invoice['total'] . ' (invoice: ' . $invoice['number'] . ')', 'moneybag', $member->ID );
-									}
-
+			if ( $invoices ) {
+				if ( $debug ) {
+					echo " Found " . count( $invoices ) . " invoices, saving to cache. \n";
+				}
+				/*Array
+				(
+						[number] => INV-0069
+						[time] => 1467072000
+						[paid_time] => 1467072000
+						[status] => PAID
+						[total] => 123.75
+						[due] => 0.00
+						[emailed] => 1
+				)*/
+				$member_manager->cache_member_invoices( $member->ID, $invoices );
+				foreach ( $invoices as $invoice_id => $invoice ) {
+					if ( ! empty( $invoice['paid_time'] ) && $invoice['status'] == 'PAID' ) {
+						echo " - Found a $" . $invoice['total'] . " paid invoice (paid on " . date( 'Y-m-d', $invoice['paid_time'] ) . "): $invoice_id \n";
+						// check how many days this invoice payment will get the user.
+						foreach ( $member_types as $member_type ) {
+							if ( $member_type['price'] == $invoice['total'] ) {
+								if ( $debug ) {
+									echo " -- this invoice is for membership type: " . $member_type['name'] . " for " . $member_type['months'] . " months. \n";
 								}
+								//									$new_member_date = strtotime('+'.$member_type['months'].' months',$invoice['paid_time']);
+								$new_member_date = strtotime( '+' . $member_type['months'] . ' months', $invoice['time'] );
+								if ( $debug ) {
+									echo " -- this invoice will extend the member date until " . date( 'Y-m-d', $new_member_date ) . " \n";
+								}
+								if ( empty( $membership_details['member_start'] ) ) {
+									//										if($debug)echo " -- will set the membership start date to " . date('Y-m-d',$invoice['paid_time']) ." \n";
+									if ( $debug ) {
+										echo " -- will set the membership start date to " . date( 'Y-m-d', $invoice['time'] ) . " \n";
+									}
+									//										$membership_details['member_start'] = $invoice['paid_time'];
+									$membership_details['member_start'] = $invoice['time'];
+									update_post_meta( $member->ID, 'membership_details_member_start', $membership_details['member_start'] );
+								}
+								if ( empty( $membership_details['member_end'] ) || $membership_details['member_end'] < $new_member_date ) {
+									if ( $debug ) {
+										echo " -- will set the membership end date to " . date( 'Y-m-d', $new_member_date ) . " \n";
+									}
+									$membership_details['member_end'] = $new_member_date;
+									update_post_meta( $member->ID, 'membership_details_member_end', $membership_details['member_end'] );
+									$this->send_notification( "Member " . $member->post_title . ' extended to ' . date( 'Y-m-d', $new_member_date ) . ' after receiving a ' . $member_type['months'] . ' month payment for $' . $invoice['total'] . ' (invoice: ' . $invoice['number'] . ')', 'moneybag', $member->ID );
+								}
+
 							}
 						}
-					}
-				} else {
-					if ( $debug ) {
-						echo "No invoices found \n";
 					}
 				}
+			} else {
+				if ( $debug ) {
+					echo "No invoices found \n";
+				}
+			}
 
 
-				if ( ! empty( $membership_details['member_end'] ) && $membership_details['member_end'] < strtotime( '+10 days' ) ) {
-					// check if expiry is coming up
+			if ( ! empty( $membership_details['member_end'] ) && $membership_details['member_end'] < strtotime( '+10 days' ) ) {
+				// check if expiry is coming up
+				if ( $debug ) {
+					echo " - membership is about to expire on " . date( 'Y-m-d', $membership_details['member_end'] ) . "\n";
+				}
+				// check if we have already sent an invoice for this member date.
+				$found_invoice = false;
+				if ( $invoices ) {
+					foreach ( $invoices as $invoice ) {
+						if ( date( 'Y-m-d', $invoice['time'] ) == date( 'Y-m-d', $membership_details['member_end'] )
+						     ||
+						     $invoice['time'] >= $membership_details['member_end']
+						) {
+							if ( $debug ) {
+								echo " --- found an invoice for this renewal already! not sending a new one \n";
+							}
+							$found_invoice = true;
+						}
+					}
+				}
+				if ( ! $found_invoice ) {
 					if ( $debug ) {
-						echo " - membership is about to expire on " . date( 'Y-m-d', $membership_details['member_end'] ) . "\n";
+						echo " --- Generating a new invoice for this renewal! \n";
 					}
-					// check if we have already sent an invoice for this member date.
-					$found_invoice = false;
-					if ( $invoices ) {
-						foreach ( $invoices as $invoice ) {
-							if ( date( 'Y-m-d', $invoice['time'] ) == date( 'Y-m-d', $membership_details['member_end'] )
-							     ||
-							     $invoice['time'] >= $membership_details['member_end']
-							) {
-								if ( $debug ) {
-									echo " --- found an invoice for this renewal already! not sending a new one \n";
-								}
-								$found_invoice = true;
-							}
-						}
-					}
-					if ( ! $found_invoice ) {
-						if ( $debug ) {
-							echo " --- Generating a new invoice for this renewal! \n";
-						}
 
-						// what membership type do they have.
-						$membership_type     = false;
-						$current_member_type = wp_get_post_terms( $member->ID, 'dtbaker_membership_type' );
-						foreach ( $current_member_type as $term ) {
-							if ( $term->slug && preg_match( '#(\d+)-months#', $term->slug, $matches ) ) {
-								$membership_type = $matches[1];
-							}
+					// what membership type do they have.
+					$membership_type     = false;
+					$current_member_type = wp_get_post_terms( $member->ID, 'dtbaker_membership_type' );
+					foreach ( $current_member_type as $term ) {
+						if ( $term->slug && preg_match( '#(\d+)-months#', $term->slug, $matches ) ) {
+							$membership_type = $matches[1];
 						}
-						if ( ! $membership_type ) {
+					}
+					if ( ! $membership_type ) {
+						if ( $debug ) {
+							echo " --- Unknown membership type. Please select one. \n";
+						}
+						if ( ! $current_member_type ) {
+							$this->send_notification( "Unable to generate a membership invoice for " . $member->post_title . " \n - Error: Please select a membership type within WordPress (e.g. 12 months)", 'moneybag', $member->ID );
+						}
+					} else {
+						if ( $debug ) {
+							echo " --- Membership type: " . $membership_type . " months \n";
+						}
+						if ( ! empty( $membership_details['automatic_type'] ) && $membership_details['automatic_type'] == 'manual_invoice' ) {
 							if ( $debug ) {
-								echo " --- Unknown membership type. Please select one. \n";
+								echo "\nmember settings to manual invoice creation\n";
 							}
-							if ( ! $current_member_type ) {
-								$this->send_notification( "Unable to generate a membership invoice for " . $member->post_title . " \n - Error: Please select a membership type within WordPress (e.g. 6 months)", 'moneybag', $member->ID );
-							}
+
+							$this->send_notification( "TODO: Please manually create a new invoice for " . $member->post_title . ' (' . $member_type['months'] . " months). \n Not automatically creating due to member settings.", 'moneybag', $member->ID );
 						} else {
-							if ( $debug ) {
-								echo " --- Membership type: " . $membership_type . " months \n";
-							}
 							foreach ( $member_types as $member_type ) {
 								if ( $member_type['months'] == $membership_type ) {
-
 
 									$invoice_details = array(
 										'contact_id'  => $membership_details['xero_id'],
@@ -571,12 +622,15 @@ class dtbaker_member_cron {
 										'description' => $member_type['name'],
 									);
 									if ( $debug ) {
-										echo " --- Creating a new invoice: \n";
+										echo " --- todo: Create a new invoice: \n";
 										print_r( $invoice_details );
 									}
 
 									//wp_mail("dtbaker@gmail.com","TechSpace Membership Renewal (".$member->post_title.")","Invoice \n ".var_export($invoice_details,true). " Link: ".get_edit_post_link($member->ID));
-									$new_invoice = dtbaker_xero::get_instance()->create_invoice( $invoice_details );
+
+									//$this->send_notification( "RENEWAL: Attempting to make a Xero invoice for " . $member->post_title . ' - (' . $member_type['months'] . " months) - Please transfer to Squer...", 'moneybag', $member->ID );
+
+									/*$new_invoice = dtbaker_xero::get_instance()->create_invoice( $invoice_details );
 									if ( $new_invoice ) {
 										// reload invoice cache for member
 										$invoices = dtbaker_xero::get_instance()->get_contact_invoices( $membership_details['xero_id'], true );
@@ -587,12 +641,13 @@ class dtbaker_member_cron {
 									} else {
 
 										$this->send_notification( "Error: Failed to make invoice in Xero for " . $member->post_title . ' - not sure why - check with dave?', 'moneybag', $member->ID );
-									}
+									}*/
 								}
 							}
 						}
 					}
 				}
+
 
 			}
 		}

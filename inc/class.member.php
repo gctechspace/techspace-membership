@@ -71,6 +71,7 @@ class dtbaker_member {
 				'eg'    => 'e.g. Treasurer'
 			),
 			'rfid'           => 'RFID Keys',
+			'square_id'      => 'Square Contact',
 			'xero_id'        => 'Xero Contact',
 			'locker_number'  => 'Locker Number',
 			'member_start'   => array(
@@ -391,9 +392,10 @@ class dtbaker_member {
 	public function manage_dtbaker_membership_posts_columns( $columns ) {
 		unset( $columns['author'] );
 		unset( $columns['date'] );
-		$columns['rfid']     = __( 'RFID' );
-		$columns['xero_id']  = __( 'Xero Contact' );
-		$columns['invoices'] = __( 'Invoices' );
+		$columns['rfid']      = __( 'RFID' );
+		$columns['square_id'] = __( 'Square Contact' );
+		$columns['xero_id']   = __( 'Xero Contact' );
+		$columns['invoices']  = __( 'Invoices' );
 		//$columns['member_start'] = __( 'Membership Start' );
 		$columns['slack']      = __( 'Slack' );
 		$columns['phone']      = __( 'Phone' );
@@ -433,6 +435,11 @@ class dtbaker_member {
 			case 'xero_id':
 				if ( ! empty( $membership_details['xero_cache'] ) ) {
 					echo esc_html( implode( ' / ', $membership_details['xero_cache'] ) );
+				}
+				break;
+			case 'square_id':
+				if ( ! empty( $membership_details['square_member_cache'] ) ) {
+					echo esc_html( implode( ' / ', $membership_details['square_member_cache'] ) );
 				}
 				break;
 			case 'member_start':
@@ -651,6 +658,62 @@ class dtbaker_member {
 						}
 
 						break;
+					case 'square_id':
+						// lookup xero contacts from api. uses the ContactID field from Xero
+						$contacts = TechSpace_Square::get_instance()->get_all_contacts( isset( $_REQUEST['square_refresh'] ) );
+						if ( empty( $membership_details['square_id'] ) ) {
+							$membership_details['square_id'] = 0;
+						}
+						?>
+						<select name="membership_details[square_id]">
+							<option value=""> - Please Select -</option>
+							<option value="CreateNew">Create New Square Contact</option>
+							<?php if ( is_array( $contacts ) && count( $contacts ) ) {
+								foreach ( $contacts as $contact_id => $contact ) { ?>
+									<option
+										value="<?php echo esc_attr( $contact_id ); ?>" <?php echo selected( $membership_details['square_id'], $contact_id ); ?>><?php echo esc_attr( $contact['name'] . ' (' . $contact['email'] . ')' ); ?></option>
+								<?php }
+							} else {
+								?>
+								<option value=""> failed to get square listing</option><?php
+							} ?>
+						</select>
+						<a
+							href="https://squareup.com/dashboard/customers/directory/customer/<?php echo ! empty( $membership_details['square_id'] ) ? $membership_details['square_id'] : ''; ?>"
+							target="_blank">Open Square</a>
+						<a href="<?php echo add_query_arg( 'square_refresh', 1, get_edit_post_link( $post->ID ) ); ?>"
+						   class="member_inline_button">Refresh List</a>
+						<?php
+						// look up xero invoices for this contact
+						if ( ! empty( $membership_details['square_id'] ) ) {
+							?>
+							<br/>
+							<br/>
+							Square Invoices:
+							<a href="<?php echo add_query_arg( 'square_invoice_refresh', 1, get_edit_post_link( $post->ID ) ); ?>"
+							   class="member_inline_button">Refresh</a>
+							<a
+								class="member_inline_button"
+								href="https://squareup.com/dashboard/customers/directory/customer/<?php echo ! empty( $membership_details['square_id'] ) ? $membership_details['square_id'] : ''; ?>"
+								target="_blank">Create New Invoice</a>
+							<br/>
+							<?php
+							$invoices = TechSpace_Square::get_instance()->get_contact_invoices( $membership_details['square_id'], isset( $_REQUEST['square_invoice_refresh'] ) );
+							if ( $invoices ) {
+								$this->cache_member_invoices( $post->ID, $invoices );
+								?>
+								<ul class="dtbaker-xero-invoices">
+									<?php foreach ( $invoices as $invoice_id => $invoice ) { ?>
+										<li>
+											<?php $this->_print_invoice_details( $invoice_id, $invoice ); ?>
+										</li>
+									<?php } ?>
+								</ul>
+								<?php
+							}
+						}
+
+						break;
 					default:
 						switch ( $field_data['type'] ) {
 							case 'select':
@@ -755,6 +818,26 @@ class dtbaker_member {
 
 		if ( isset( $_POST['membership_details'] ) && is_array( $_POST['membership_details'] ) ) {
 			$membership_details = $_POST['membership_details'];
+
+
+			if ( ! empty( $membership_details['square_id'] ) ) {
+
+				// create new contact if missing
+				if ( $membership_details['square_id'] == "CreateNew" ) {
+					$new_square_contact_id = TechSpace_Square::get_instance()->create_contact( array(
+						'name'  => get_the_title( $post_id ),
+						'email' => $membership_details['email'],
+						'phone' => $membership_details['phone'],
+					) );
+					$all_contacts     = TechSpace_Square::get_instance()->get_all_contacts( true );
+					if ( $new_square_contact_id && isset( $all_contacts[ $new_square_contact_id ] ) ) {
+						$membership_details['square_id'] = $new_square_contact_id;
+					} else {
+						echo 'Failed to create new contact in square';
+						exit;
+					}
+				}
+			}
 			if ( ! empty( $membership_details['xero_id'] ) ) {
 
 				// create new contact if missing
@@ -931,18 +1014,24 @@ class dtbaker_member {
 
 		// todo: config utility to select which line items to store.
 		$member_types = array(
+			'5bc6f27f-4a9a-4e24-9ee9-7ca75e4b0496' => array(
+				'code'   => 'mem12MonthsFor10',
+				'name'   => '12 Months Membership',
+				'months' => '12',
+				'price'  => '250',
+			),
 			'b5f3cfc-6f3e-4311-978f-e36069929067'  => array(
 				'code'   => 'mem12Months',
-				'name'   => '12 Months Membership',
+				'name'   => '12 Months Membership (Grandfathered $225)',
 				'months' => '12',
 				'price'  => '225',
 			),
-			'07860992-c84a-4633-9805-065aba35401b' => array(
+			/*'07860992-c84a-4633-9805-065aba35401b' => array(
 				'code'   => 'mem6Monthly',
 				'name'   => '6 Months Membership',
 				'months' => '6',
 				'price'  => '125',
-			),
+			),*/
 			'e11ddd97-062e-408f-abaa-2cdd1214a2aa' => array(
 				'code'   => 'memMonthly2016',
 				'name'   => '1 Month Membership',

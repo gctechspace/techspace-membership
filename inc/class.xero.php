@@ -217,6 +217,19 @@ class dtbaker_xero {
 		}
 
 	}
+
+	public function email_invoice( $xero_contact_id, $invoice_id ) {
+
+		$XeroOAuth = $this->_xero_api_init();
+		$response  = $XeroOAuth->request( 'POST', $XeroOAuth->url( 'Invoices/' . $invoice_id .'/Email', 'core' ), array(), "" );
+		if ( $XeroOAuth->response['code'] == 204 ) {
+			$invoices = dtbaker_xero::get_instance()->get_contact_invoices( $xero_contact_id, true );
+			return true;
+		}
+		print_r($response);
+		return false;
+
+	}
 }
 
 /*

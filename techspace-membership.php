@@ -148,6 +148,33 @@ class DtbakerMembershipManager {
 			'techspace_membership_section'
 		);
 		register_setting( 'techspace_member_settings', 'techspace_membership_wifi_password' );
+
+		add_settings_field(
+			'techspace_membership_square_app_id',
+			'Square App ID',
+			array( $this, 'settings_callback_square_app_id' ),
+			'techspace_member_settings',
+			'techspace_membership_section'
+		);
+		register_setting( 'techspace_member_settings', 'techspace_membership_square_app_id' );
+
+		add_settings_field(
+			'techspace_membership_square_access_token',
+			'Square Access Token',
+			array( $this, 'settings_callback_square_access_token' ),
+			'techspace_member_settings',
+			'techspace_membership_section'
+		);
+		register_setting( 'techspace_member_settings', 'techspace_membership_square_access_token' );
+
+		add_settings_field(
+			'techspace_membership_square_webhook_signature',
+			'Square Webhook Signature',
+			array( $this, 'settings_callback_square_webhook_signature' ),
+			'techspace_member_settings',
+			'techspace_membership_section'
+		);
+		register_setting( 'techspace_member_settings', 'techspace_membership_square_webhook_signature' );
 	}
 
 	public function whitelist_options( $options ) {
@@ -214,6 +241,26 @@ class DtbakerMembershipManager {
 		$setting = esc_attr( get_option( 'techspace_membership_wifi_password' ) );
 		?> <input type="text" name="techspace_membership_wifi_password" class="techspace-edit-form"
 		          placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New Wifi Password Here'; ?>"><?php
+	}
+
+	public function settings_callback_square_app_id() {
+		$setting = esc_attr( get_option( 'techspace_membership_square_app_id' ) );
+		?> <input type="text" name="techspace_membership_square_app_id" class="techspace-edit-form"
+		          placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New Square App ID here'; ?>"><?php
+	}
+
+	public function settings_callback_square_access_token() {
+		$setting = esc_attr( get_option( 'techspace_membership_square_access_token' ) );
+		?> <input type="text" name="techspace_membership_square_access_token" class="techspace-edit-form"
+		          placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New Square Access Token Here'; ?>"><?php
+	}
+
+	public function settings_callback_square_webhook_signature() {
+		$setting = esc_attr( get_option( 'techspace_membership_square_webhook_signature' ) );
+		?> <input type="text" name="techspace_membership_square_webhook_signature" class="techspace-edit-form"
+		          placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New Square Access Token Here'; ?>">
+		<code>https://gctechspace.org/api/square/webhook</code>
+		<?php
 	}
 
 	public function frontend_css() {
@@ -361,6 +408,7 @@ require_once 'inc/class.table.php';
 require_once 'inc/class.api.php';
 require_once 'inc/class.xero.php';
 require_once 'inc/class.submit.php';
+require_once 'inc/class.square.php';
 
 require_once 'inc/class.member.php';
 require_once 'inc/class.rfid.php';
