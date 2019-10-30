@@ -386,7 +386,7 @@ class TechSpace_Frontend_Submit {
 				$available_categories = get_terms( 'dtbaker_membership_type', array(
 					'hide_empty' => false,
 				) );
-				$types_order          = array( 93, 94, 95, 96 );
+				$types_order          = array( 94, 157 ); //93, 95,  96
 
 				foreach ( $types_order as $type_id ) {
 					foreach ( $available_categories as $available_category ) {
