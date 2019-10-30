@@ -148,19 +148,27 @@ class TechSpace_Frontend_Submit {
 			}
 
 			$membership_category  = 0;
+			$membership_category_name = 0;
+			$membership_category_price = 0;
 			$available_categories = get_terms( 'dtbaker_membership_type', array(
 				'hide_empty' => false,
 			) );
 			foreach ( $available_categories as $available_category ) {
 				if ( $available_category->term_id == $_POST['membership_category'] ) {
 					$membership_category = $available_category->term_id;
+					$membership_category_name = $available_category->name;
+					if($membership_category == 157){
+						$membership_category_price = 250;
+					}else if($membership_category == 94){
+						$membership_category_price = 25;
+					}
 				}
 			}
 
 			// Add the content of the form to $post as an array
 			$post    = array(
 				'post_title'   => wp_strip_all_tags( $title ),
-				'post_content' => "Signup from website. IP Address: " . $_SERVER['REMOTE_ADDR'] . "\n\n\n" . wp_strip_all_tags( isset( $_POST['member_comments'] ) ? $_POST['member_comments'] : '' ),
+				'post_content' => "$membership_category_name Signup from website. IP Address: " . $_SERVER['REMOTE_ADDR'] . "\n\n\n" . wp_strip_all_tags( isset( $_POST['member_comments'] ) ? $_POST['member_comments'] : '' ),
 				//'post_category' => array($membership_category),  // Usable for custom taxonomies too
 				'post_status'  => 'draft',            // Choose: publish, preview, future, etc.
 				'post_type'    => 'dtbaker_membership'  // Use a custom post type if you want to
@@ -177,11 +185,28 @@ class TechSpace_Frontend_Submit {
 						update_post_meta( $post_id, 'membership_details_' . $key, $val );
 					}
 				}
+
+				$new_square_contact_id = TechSpace_Square::get_instance()->create_contact( array(
+					'name'  => wp_strip_all_tags( $title ),
+					'email' => $details['email'],
+					'phone' => $details['phone'],
+				) );
+				$all_contacts     = TechSpace_Square::get_instance()->get_all_contacts( true );
+				if ( $new_square_contact_id && isset( $all_contacts[ $new_square_contact_id ] ) ) {
+					update_post_meta( $post_id, 'membership_details_square_id', $new_square_contact_id );
+//					TechSpace_Square::get_instance()->create_invoice($new_square_contact_id, [
+//						'name' => 'GC TechSpace Membership: ' . $membership_category_name,
+//						'quantity' => '1',
+//						'money' => $membership_category_price,
+//					]);
+				}
+
 				// use the cron class to send slack notification.
 				$cron = dtbaker_member_cron::get_instance();
-				$cron->send_notification( 'New membership signed up on website: ' . $title, 'memo' );
+				$cron->send_notification( 'New member signup: "' . $title . '" for "'.$membership_category_name.'". Please generate a Square invoice manually: https://squareup.com/dashboard/customers/directory/customer/' . $new_square_contact_id, 'memo' );
 
-				wp_mail( "dtbaker@gmail.com", "TechSpace Membership Signup ($title)", "Member signup: $title. Link: " . get_edit_post_link( $post_id ) );
+				wp_mail( "dtbaker@gmail.com", "TechSpace Membership Signup ($title)", "Member signup: $title. Type: $membership_category_name Square: $new_square_contact_id  Link: " . get_edit_post_link( $post_id ) );
+
 				//wp_mail("manager@gctechspace.org","TechSpace Membership Signup ($title)","Member signup: $title. Link: ".get_edit_post_link($post_id));
 			}
 

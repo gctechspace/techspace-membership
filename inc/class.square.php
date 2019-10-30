@@ -182,6 +182,47 @@ class TechSpace_Square {
 		return false;
 	}
 
+	public function create_invoice( $square_customer_id, $invoice_details ) {
+
+		// THIS DOESN"T WORK :( it's not possible to create invoices through the API
+
+		$this->_square_api_init();
+		$orders_api = new \SquareConnect\Api\OrdersApi();
+		// techspace location
+		$location_id     = 'DQYMWM0W27CD8';
+
+		$line_item = new \SquareConnect\Model\OrderLineItem();
+		$line_item->setName($invoice_details['name']);
+		$line_item->setQuantity($invoice_details['quantity']);
+		$money = new \SquareConnect\Model\Money();
+		$money->setAmount($invoice_details['money']);
+		$money->setCurrency('AUD');
+		$line_item->setBasePriceMoney($money);
+
+		$order  = new \SquareConnect\Model\Order();
+		$order->setLocationId($location_id);
+		$order->setCustomerId($square_customer_id);
+		$order->setLineItems([$line_item]);
+
+		$body = new \SquareConnect\Model\CreateOrderRequest();
+		$body->setIdempotencyKey('Order-'.$square_customer_id.'-'.time());
+		$body->setOrder($order);
+
+		print_r($body);
+
+		try {
+			$order_id = $orders_api->createOrder( $location_id, $body);
+			if ( $order_id ) {
+				echo 'done';exit;
+				return $order_id;
+			}
+		}catch(Exception $e){
+			echo 'Exception when creating order: ', $e->getMessage(), PHP_EOL;
+			exit;
+		}
+		return false;
+	}
+
 }
 
 TechSpace_Square::get_instance();

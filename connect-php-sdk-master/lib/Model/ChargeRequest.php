@@ -9,6 +9,7 @@ namespace SquareConnect\Model;
 
 use \ArrayAccess;
 /**
+ * @deprecated
  * ChargeRequest Class Doc Comment
  *
  * @category Class
@@ -36,7 +37,8 @@ class ChargeRequest implements ArrayAccess
         'shipping_address' => '\SquareConnect\Model\Address',
         'buyer_email_address' => 'string',
         'order_id' => 'string',
-        'additional_recipients' => '\SquareConnect\Model\AdditionalRecipient[]'
+        'additional_recipients' => '\SquareConnect\Model\AdditionalRecipient[]',
+        'verification_token' => 'string'
     );
   
     /** 
@@ -56,7 +58,8 @@ class ChargeRequest implements ArrayAccess
         'shipping_address' => 'shipping_address',
         'buyer_email_address' => 'buyer_email_address',
         'order_id' => 'order_id',
-        'additional_recipients' => 'additional_recipients'
+        'additional_recipients' => 'additional_recipients',
+        'verification_token' => 'verification_token'
     );
   
     /**
@@ -76,7 +79,8 @@ class ChargeRequest implements ArrayAccess
         'shipping_address' => 'setShippingAddress',
         'buyer_email_address' => 'setBuyerEmailAddress',
         'order_id' => 'setOrderId',
-        'additional_recipients' => 'setAdditionalRecipients'
+        'additional_recipients' => 'setAdditionalRecipients',
+        'verification_token' => 'setVerificationToken'
     );
   
     /**
@@ -96,16 +100,17 @@ class ChargeRequest implements ArrayAccess
         'shipping_address' => 'getShippingAddress',
         'buyer_email_address' => 'getBuyerEmailAddress',
         'order_id' => 'getOrderId',
-        'additional_recipients' => 'getAdditionalRecipients'
+        'additional_recipients' => 'getAdditionalRecipients',
+        'verification_token' => 'getVerificationToken'
     );
   
     /**
-      * $idempotency_key A value you specify that uniquely identifies this transaction among transactions you've created.  If you're unsure whether a particular transaction succeeded, you can reattempt it with the same idempotency key without worrying about double-charging the buyer.  See [Idempotency](/basics/api101/idempotency) for more information.
+      * $idempotency_key A value you specify that uniquely identifies this transaction among transactions you've created.  If you're unsure whether a particular transaction succeeded, you can reattempt it with the same idempotency key without worrying about double-charging the buyer.  See [Idempotency](https://developer.squareup.com/docs/basics/api101/idempotency) for more information.
       * @var string
       */
     protected $idempotency_key;
     /**
-      * $amount_money The amount of money to charge.  Note that you specify the amount in the __smallest denomination of the applicable currency__. For example, US dollar amounts are specified in cents. See [Working with monetary amounts](#workingwithmonetaryamounts) for details.  The value of `currency` must match the currency associated with the business that is charging the card.
+      * $amount_money The amount of money to charge.  Note that you specify the amount in the __smallest denomination of the applicable currency__. For example, US dollar amounts are specified in cents. See [Working with monetary amounts](https://developer.squareup.com/docs/build-basics/working-with-monetary-amounts) for details.  The value of `currency` must match the currency associated with the business that is charging the card.
       * @var \SquareConnect\Model\Money
       */
     protected $amount_money;
@@ -120,7 +125,7 @@ class ChargeRequest implements ArrayAccess
       */
     protected $customer_card_id;
     /**
-      * $delay_capture If `true`, the request will only perform an Auth on the provided card. You can then later perform either a Capture (with the [CaptureTransaction](#endpoint-capturetransaction) endpoint) or a Void (with the [VoidTransaction](#endpoint-voidtransaction) endpoint).  Default value: `false`
+      * $delay_capture If `true`, the request will only perform an Auth on the provided card. You can then later perform either a Capture (with the `CaptureTransaction` or a Void (with the `VoidTransaction`.  Default value: `false`
       * @var bool
       */
     protected $delay_capture;
@@ -130,7 +135,7 @@ class ChargeRequest implements ArrayAccess
       */
     protected $reference_id;
     /**
-      * $note 
+      * $note An optional note to associate with the transaction.  This value cannot exceed 60 characters.
       * @var string
       */
     protected $note;
@@ -140,17 +145,17 @@ class ChargeRequest implements ArrayAccess
       */
     protected $customer_id;
     /**
-      * $billing_address The buyer's billing address. This value is optional, but this transaction is ineligible for chargeback protection if neither this parameter nor `shipping_address` is provided.
+      * $billing_address The buyer's billing address.
       * @var \SquareConnect\Model\Address
       */
     protected $billing_address;
     /**
-      * $shipping_address The buyer's shipping address, if available. This value is optional, but this transaction is ineligible for chargeback protection if neither this parameter nor `billing_address` is provided.
+      * $shipping_address The buyer's shipping address, if available.
       * @var \SquareConnect\Model\Address
       */
     protected $shipping_address;
     /**
-      * $buyer_email_address The buyer's email address, if available. This value is optional, but this transaction is ineligible for chargeback protection if it is not provided.
+      * $buyer_email_address The buyer's email address, if available.
       * @var string
       */
     protected $buyer_email_address;
@@ -164,6 +169,11 @@ class ChargeRequest implements ArrayAccess
       * @var \SquareConnect\Model\AdditionalRecipient[]
       */
     protected $additional_recipients;
+    /**
+      * $verification_token An identifying token generated by `SqPaymentForm.verifyBuyer()`. Verification tokens encapsulate customer device information and 3-D Secure challenge results to indicate that Square has verified the buyer identity.
+      * @var string
+      */
+    protected $verification_token;
 
     /**
      * Constructor
@@ -237,6 +247,11 @@ class ChargeRequest implements ArrayAccess
             } else {
               $this->additional_recipients = null;
             }
+            if (isset($data["verification_token"])) {
+              $this->verification_token = $data["verification_token"];
+            } else {
+              $this->verification_token = null;
+            }
         }
     }
     /**
@@ -250,7 +265,7 @@ class ChargeRequest implements ArrayAccess
   
     /**
      * Sets idempotency_key
-     * @param string $idempotency_key A value you specify that uniquely identifies this transaction among transactions you've created.  If you're unsure whether a particular transaction succeeded, you can reattempt it with the same idempotency key without worrying about double-charging the buyer.  See [Idempotency](/basics/api101/idempotency) for more information.
+     * @param string $idempotency_key A value you specify that uniquely identifies this transaction among transactions you've created.  If you're unsure whether a particular transaction succeeded, you can reattempt it with the same idempotency key without worrying about double-charging the buyer.  See [Idempotency](https://developer.squareup.com/docs/basics/api101/idempotency) for more information.
      * @return $this
      */
     public function setIdempotencyKey($idempotency_key)
@@ -269,7 +284,7 @@ class ChargeRequest implements ArrayAccess
   
     /**
      * Sets amount_money
-     * @param \SquareConnect\Model\Money $amount_money The amount of money to charge.  Note that you specify the amount in the __smallest denomination of the applicable currency__. For example, US dollar amounts are specified in cents. See [Working with monetary amounts](#workingwithmonetaryamounts) for details.  The value of `currency` must match the currency associated with the business that is charging the card.
+     * @param \SquareConnect\Model\Money $amount_money The amount of money to charge.  Note that you specify the amount in the __smallest denomination of the applicable currency__. For example, US dollar amounts are specified in cents. See [Working with monetary amounts](https://developer.squareup.com/docs/build-basics/working-with-monetary-amounts) for details.  The value of `currency` must match the currency associated with the business that is charging the card.
      * @return $this
      */
     public function setAmountMoney($amount_money)
@@ -326,7 +341,7 @@ class ChargeRequest implements ArrayAccess
   
     /**
      * Sets delay_capture
-     * @param bool $delay_capture If `true`, the request will only perform an Auth on the provided card. You can then later perform either a Capture (with the [CaptureTransaction](#endpoint-capturetransaction) endpoint) or a Void (with the [VoidTransaction](#endpoint-voidtransaction) endpoint).  Default value: `false`
+     * @param bool $delay_capture If `true`, the request will only perform an Auth on the provided card. You can then later perform either a Capture (with the `CaptureTransaction` or a Void (with the `VoidTransaction`.  Default value: `false`
      * @return $this
      */
     public function setDelayCapture($delay_capture)
@@ -364,7 +379,7 @@ class ChargeRequest implements ArrayAccess
   
     /**
      * Sets note
-     * @param string $note 
+     * @param string $note An optional note to associate with the transaction.  This value cannot exceed 60 characters.
      * @return $this
      */
     public function setNote($note)
@@ -402,7 +417,7 @@ class ChargeRequest implements ArrayAccess
   
     /**
      * Sets billing_address
-     * @param \SquareConnect\Model\Address $billing_address The buyer's billing address. This value is optional, but this transaction is ineligible for chargeback protection if neither this parameter nor `shipping_address` is provided.
+     * @param \SquareConnect\Model\Address $billing_address The buyer's billing address.
      * @return $this
      */
     public function setBillingAddress($billing_address)
@@ -421,7 +436,7 @@ class ChargeRequest implements ArrayAccess
   
     /**
      * Sets shipping_address
-     * @param \SquareConnect\Model\Address $shipping_address The buyer's shipping address, if available. This value is optional, but this transaction is ineligible for chargeback protection if neither this parameter nor `billing_address` is provided.
+     * @param \SquareConnect\Model\Address $shipping_address The buyer's shipping address, if available.
      * @return $this
      */
     public function setShippingAddress($shipping_address)
@@ -440,7 +455,7 @@ class ChargeRequest implements ArrayAccess
   
     /**
      * Sets buyer_email_address
-     * @param string $buyer_email_address The buyer's email address, if available. This value is optional, but this transaction is ineligible for chargeback protection if it is not provided.
+     * @param string $buyer_email_address The buyer's email address, if available.
      * @return $this
      */
     public function setBuyerEmailAddress($buyer_email_address)
@@ -484,6 +499,25 @@ class ChargeRequest implements ArrayAccess
     public function setAdditionalRecipients($additional_recipients)
     {
         $this->additional_recipients = $additional_recipients;
+        return $this;
+    }
+    /**
+     * Gets verification_token
+     * @return string
+     */
+    public function getVerificationToken()
+    {
+        return $this->verification_token;
+    }
+  
+    /**
+     * Sets verification_token
+     * @param string $verification_token An identifying token generated by `SqPaymentForm.verifyBuyer()`. Verification tokens encapsulate customer device information and 3-D Secure challenge results to indicate that Square has verified the buyer identity.
+     * @return $this
+     */
+    public function setVerificationToken($verification_token)
+    {
+        $this->verification_token = $verification_token;
         return $this;
     }
     /**

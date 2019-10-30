@@ -31,7 +31,8 @@ class Card implements ArrayAccess
         'exp_year' => 'int',
         'cardholder_name' => 'string',
         'billing_address' => '\SquareConnect\Model\Address',
-        'fingerprint' => 'string'
+        'fingerprint' => 'string',
+        'bin' => 'string'
     );
   
     /** 
@@ -46,7 +47,8 @@ class Card implements ArrayAccess
         'exp_year' => 'exp_year',
         'cardholder_name' => 'cardholder_name',
         'billing_address' => 'billing_address',
-        'fingerprint' => 'fingerprint'
+        'fingerprint' => 'fingerprint',
+        'bin' => 'bin'
     );
   
     /**
@@ -61,7 +63,8 @@ class Card implements ArrayAccess
         'exp_year' => 'setExpYear',
         'cardholder_name' => 'setCardholderName',
         'billing_address' => 'setBillingAddress',
-        'fingerprint' => 'setFingerprint'
+        'fingerprint' => 'setFingerprint',
+        'bin' => 'setBin'
     );
   
     /**
@@ -76,7 +79,8 @@ class Card implements ArrayAccess
         'exp_year' => 'getExpYear',
         'cardholder_name' => 'getCardholderName',
         'billing_address' => 'getBillingAddress',
-        'fingerprint' => 'getFingerprint'
+        'fingerprint' => 'getFingerprint',
+        'bin' => 'getBin'
     );
   
     /**
@@ -85,7 +89,7 @@ class Card implements ArrayAccess
       */
     protected $id;
     /**
-      * $card_brand The card's brand (such as `VISA`). See [CardBrand](#type-cardbrand) for all possible values.
+      * $card_brand The card's brand (such as `VISA`). See [CardBrand](#type-cardbrand) for possible values
       * @var string
       */
     protected $card_brand;
@@ -115,10 +119,15 @@ class Card implements ArrayAccess
       */
     protected $billing_address;
     /**
-      * $fingerprint __Not currently set.__ Intended as a Square-assigned identifier, based on the card number, to identify the card across multiple locations within a single application.
+      * $fingerprint A unique, Square-assigned ID that identifies the card across multiple locations and applications for a single Square account.
       * @var string
       */
     protected $fingerprint;
+    /**
+      * $bin The first six digits of the card number, known as the Bank Identification Number (BIN). Only the Payments API returns this field.
+      * @var string
+      */
+    protected $bin;
 
     /**
      * Constructor
@@ -167,6 +176,11 @@ class Card implements ArrayAccess
             } else {
               $this->fingerprint = null;
             }
+            if (isset($data["bin"])) {
+              $this->bin = $data["bin"];
+            } else {
+              $this->bin = null;
+            }
         }
     }
     /**
@@ -199,7 +213,7 @@ class Card implements ArrayAccess
   
     /**
      * Sets card_brand
-     * @param string $card_brand The card's brand (such as `VISA`). See [CardBrand](#type-cardbrand) for all possible values.
+     * @param string $card_brand The card's brand (such as `VISA`). See [CardBrand](#type-cardbrand) for possible values
      * @return $this
      */
     public function setCardBrand($card_brand)
@@ -313,12 +327,31 @@ class Card implements ArrayAccess
   
     /**
      * Sets fingerprint
-     * @param string $fingerprint __Not currently set.__ Intended as a Square-assigned identifier, based on the card number, to identify the card across multiple locations within a single application.
+     * @param string $fingerprint A unique, Square-assigned ID that identifies the card across multiple locations and applications for a single Square account.
      * @return $this
      */
     public function setFingerprint($fingerprint)
     {
         $this->fingerprint = $fingerprint;
+        return $this;
+    }
+    /**
+     * Gets bin
+     * @return string
+     */
+    public function getBin()
+    {
+        return $this->bin;
+    }
+  
+    /**
+     * Sets bin
+     * @param string $bin The first six digits of the card number, known as the Bank Identification Number (BIN). Only the Payments API returns this field.
+     * @return $this
+     */
+    public function setBin($bin)
+    {
+        $this->bin = $bin;
         return $this;
     }
     /**

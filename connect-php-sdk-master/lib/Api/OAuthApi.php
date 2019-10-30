@@ -108,7 +108,7 @@ class OAuthApi
             $headerParams['Accept'] = $_header_accept;
         }
         $headerParams['Content-Type'] = ApiClient::selectHeaderContentType(array('application/json'));
-        $headerParams['Square-Version'] = "2019-03-13";
+        $headerParams['Square-Version'] = "2019-10-23";
 
         
         
@@ -153,6 +153,7 @@ class OAuthApi
         }
     }
     /**
+     * @deprecated
      * renewToken
      *
      * RenewToken
@@ -164,6 +165,7 @@ class OAuthApi
      */
     public function renewToken($client_id, $body)
     {
+        trigger_error("\x1B[33mCalling deprecated API: OAuthApi.renewToken\x1B[0m", E_USER_DEPRECATED);
         list($response, $statusCode, $httpHeader) = $this->renewTokenWithHttpInfo ($client_id, $body);
         return $response; 
     }
@@ -202,7 +204,7 @@ class OAuthApi
             $headerParams['Accept'] = $_header_accept;
         }
         $headerParams['Content-Type'] = ApiClient::selectHeaderContentType(array('application/json'));
-        $headerParams['Square-Version'] = "2019-03-13";
+        $headerParams['Square-Version'] = "2019-10-23";
 
         
         
@@ -304,7 +306,7 @@ class OAuthApi
             $headerParams['Accept'] = $_header_accept;
         }
         $headerParams['Content-Type'] = ApiClient::selectHeaderContentType(array('application/json'));
-        $headerParams['Square-Version'] = "2019-03-13";
+        $headerParams['Square-Version'] = "2019-10-23";
 
         
         
