@@ -60,12 +60,6 @@
   color: #FFF;
   text-decoration: none;
 }
-#xero_create_invoice_form {
-  display: none;
-  margin: 13px;
-  padding: 10px;
-  border: 1px solid #EFEFEF;
-}
 #square_create_invoice_form {
   display: none;
   margin: 13px;

@@ -72,7 +72,6 @@ class dtbaker_member {
 			),
 			'rfid'           => 'RFID Keys',
 			'square_id'      => 'Square Contact',
-			'xero_id'        => 'Xero Contact',
 			'locker_number'  => 'Locker Number',
 			'member_start'   => array(
 				'title' => 'Member Start',
@@ -394,7 +393,6 @@ class dtbaker_member {
 		unset( $columns['date'] );
 		$columns['rfid']      = __( 'RFID' );
 		$columns['square_id'] = __( 'Square Contact' );
-		$columns['xero_id']   = __( 'Xero Contact' );
 		$columns['invoices']  = __( 'Invoices' );
 		//$columns['member_start'] = __( 'Membership Start' );
 		$columns['slack']      = __( 'Slack' );
@@ -430,11 +428,6 @@ class dtbaker_member {
 					}
 				} else {
 					echo 'None';
-				}
-				break;
-			case 'xero_id':
-				if ( ! empty( $membership_details['xero_cache'] ) ) {
-					echo esc_html( implode( ' / ', $membership_details['xero_cache'] ) );
 				}
 				break;
 			case 'square_id':
@@ -488,7 +481,6 @@ class dtbaker_member {
 			$detail_fields[ $key ] = get_post_meta( $post_id, 'membership_details_' . $key, true );
 		}
 		$detail_fields['expiry_days']   = ( ! empty( $detail_fields['member_end'] ) && $detail_fields['member_end'] > time() + 86400 ) ? round( ( $detail_fields['member_end'] - time() ) / 86400 ) : 0;
-		$detail_fields['xero_cache']    = get_post_meta( $post_id, 'membership_details_xero_cache', true );
 		$detail_fields['invoice_cache'] = get_post_meta( $post_id, 'membership_details_invoice_cache', true );
 
 		return $detail_fields;
@@ -582,84 +574,8 @@ class dtbaker_member {
 							echo 'None';
 						}
 						break;
-					case 'xero_id':
-						// lookup xero contacts from api. uses the ContactID field from Xero
-						$contacts = dtbaker_xero::get_instance()->get_all_contacts( isset( $_REQUEST['xero_refresh'] ) );
-						if ( empty( $membership_details['xero_id'] ) ) {
-							$membership_details['xero_id'] = 0;
-						}
-						?>
-						<select name="membership_details[xero_id]">
-							<option value=""> - Please Select -</option>
-							<option value="CreateNew">Create New XERO Contact</option>
-							<?php if ( is_array( $contacts ) && count( $contacts ) ) {
-								foreach ( $contacts as $contact_id => $contact ) { ?>
-									<option
-										value="<?php echo esc_attr( $contact_id ); ?>" <?php echo selected( $membership_details['xero_id'], $contact_id ); ?>><?php echo esc_attr( $contact['name'] ); ?></option>
-								<?php }
-							} else {
-								?>
-								<option value=""> failed to get xero listing</option><?php
-							} ?>
-						</select>
-						<a href="<?php echo add_query_arg( 'xero_refresh', 1, get_edit_post_link( $post->ID ) ); ?>"
-						   class="member_inline_button">Refresh List</a>
-						<?php
-						// look up xero invoices for this contact
-						if ( ! empty( $membership_details['xero_id'] ) ) {
-							?>
-							<br/>
-							<br/>
-							Xero Invoices:
-							<a href="<?php echo add_query_arg( 'xero_invoice_refresh', 1, get_edit_post_link( $post->ID ) ); ?>"
-							   class="member_inline_button">Refresh</a>
-							<a href="#" class="member_inline_button" id="xero_create_new_invoice">Create New</a>
-							<div id="xero_create_invoice_form">
-								<strong>Create a new Invoice in Xero:</strong>
-								<div class="dtbaker_member_form_field">
-									Invoice Date: <input type="text" name="xero_invoice_date" value="" class="dtbaker-datepicker">
-								</div>
-								<div class="dtbaker_member_form_field">
-									<?php //print_r(dtbaker_xero::get_instance()->get_line_items()); ?>
-									Membership Type: <select type="text" name="xero_line_item">
-										<option value="">Please select</option>
-										<?php
-										$line_items = $this->get_member_types();
-										foreach ( $line_items as $line_item_id => $line_item ) {
-											?>
-											<option
-												value="<?php echo $line_item_id; ?>"><?php echo $line_item['name'] . ' $' . $line_item['price']; ?></option>
-
-											<?php
-										}
-										?>
-									</select>
-								</div>
-								<div class="dtbaker_member_form_field">
-									<input type="button" name="create_invoice" value="Create Invoice"
-									       onclick="jQuery('#publish').click();">
-								</div>
-							</div>
-							<br/>
-							<?php
-							$invoices = dtbaker_xero::get_instance()->get_contact_invoices( $membership_details['xero_id'], isset( $_REQUEST['xero_invoice_refresh'] ) );
-							if ( $invoices ) {
-								$this->cache_member_invoices( $post->ID, $invoices );
-								?>
-								<ul class="dtbaker-xero-invoices">
-									<?php foreach ( $invoices as $invoice_id => $invoice ) { ?>
-										<li>
-											<?php $this->_print_invoice_details( $invoice_id, $invoice ); ?>
-										</li>
-									<?php } ?>
-								</ul>
-								<?php
-							}
-						}
-
-						break;
 					case 'square_id':
-						// lookup xero contacts from api. uses the ContactID field from Xero
+						// lookup square contacts from api. uses the ContactID field from square
 						$contacts = TechSpace_Square::get_instance()->get_all_contacts( isset( $_REQUEST['square_refresh'] ) );
 						if ( empty( $membership_details['square_id'] ) ) {
 							$membership_details['square_id'] = 0;
@@ -684,7 +600,7 @@ class dtbaker_member {
 						<a href="<?php echo add_query_arg( 'square_refresh', 1, get_edit_post_link( $post->ID ) ); ?>"
 						   class="member_inline_button">Refresh List</a>
 						<?php
-						// look up xero invoices for this contact
+						// look up square invoices for this contact
 						if ( ! empty( $membership_details['square_id'] ) ) {
 							?>
 							<br/>
@@ -702,7 +618,7 @@ class dtbaker_member {
 							if ( $invoices ) {
 								$this->cache_member_invoices( $post->ID, $invoices );
 								?>
-								<ul class="dtbaker-xero-invoices">
+								<ul class="dtbaker-square-invoices">
 									<?php foreach ( $invoices as $invoice_id => $invoice ) { ?>
 										<li>
 											<?php $this->_print_invoice_details( $invoice_id, $invoice ); ?>
@@ -836,53 +752,6 @@ class dtbaker_member {
 						echo 'Failed to create new contact in square';
 						exit;
 					}
-				}
-			}
-			if ( ! empty( $membership_details['xero_id'] ) ) {
-
-				// create new contact if missing
-				if ( $membership_details['xero_id'] == "CreateNew" ) {
-					$new_xero_contact = dtbaker_xero::get_instance()->create_contact( array(
-						'name'  => get_the_title( $post_id ),
-						'email' => $membership_details['email'],
-						'phone' => $membership_details['phone'],
-					) );
-					$all_contacts     = dtbaker_xero::get_instance()->get_all_contacts( true );
-					if ( $new_xero_contact && isset( $all_contacts[ $new_xero_contact ] ) ) {
-						$membership_details['xero_id'] = $new_xero_contact;
-					} else {
-						echo 'Failed to create new contact';
-						exit;
-					}
-				}
-				// cache local xero details for this member
-				$contacts = dtbaker_xero::get_instance()->get_all_contacts();
-				if ( isset( $contacts[ $membership_details['xero_id'] ] ) ) {
-					update_post_meta( $post_id, 'membership_details_xero_cache', $contacts[ $membership_details['xero_id'] ] );
-
-					// we have a valid contact in our system. are we generating an invoice?
-					if ( ! empty( $_POST['xero_line_item'] ) && ! empty( $_POST['xero_invoice_date'] ) && $invoice_time = strtotime( $_POST['xero_invoice_date'] ) ) {
-						$line_items = $this->get_member_types();
-						if ( isset( $line_items[ $_POST['xero_line_item'] ] ) ) {
-							$new_invoice = dtbaker_xero::get_instance()->create_invoice( array(
-								'contact_id'  => $membership_details['xero_id'],
-								'date'        => date( 'Y-m-d', $invoice_time ),
-								'due_date'    => date( 'Y-m-d', strtotime( '+7 days', $invoice_time ) ),
-								'item_code'   => $line_items[ $_POST['xero_line_item'] ]['code'],
-								'description' => $line_items[ $_POST['xero_line_item'] ]['name'],
-							) );
-							if ( $new_invoice ) {
-								// reload invoice cache for member
-								$invoices = dtbaker_xero::get_instance()->get_contact_invoices( $membership_details['xero_id'], true );
-								$this->cache_member_invoices( $post_id, $invoices );
-							} else {
-								echo 'Failed to create invoice';
-								exit;
-							}
-						}
-					}
-				} else {
-					unset( $membership_details['xero_id'] );
 				}
 			}
 			foreach ( $this->detail_fields as $key => $val ) {
@@ -1039,13 +908,6 @@ class dtbaker_member {
 				'price'  => '25',
 			),
 		);
-
-		/*foreach(dtbaker_xero::get_instance()->get_line_items() as $id => $line_item){
-			if(!isset($member_types[$id]) && $line_item['price']){
-				$line_item['name'] = $line_item['description'];
-				$member_types[$id] = $line_item;
-			}
-		}*/
 
 		return $member_types;
 	}

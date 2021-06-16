@@ -475,8 +475,6 @@ class TechSpace_API_Endpoint{
 			'member_name' => get_the_title($member_id),
 			'member_email' => strtolower($member_details['email']),
 			'membership_expiry_days' => $member_details['expiry_days'],
-			'xero_contact_id' => $member_details['xero_id'],
-			//'xero_contact_details' => !empty($member_details['xero_cache']) ? $member_details['xero_cache'] : false,
 			'rfid' => $rfid_codes,
 			'access' => $access,
 			'valid_times' => $member_details['valid_times'],

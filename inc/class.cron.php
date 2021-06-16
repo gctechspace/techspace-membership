@@ -35,7 +35,6 @@ class dtbaker_member_cron {
 		$this->notify_about_freeloaders();
 		$this->run_cron_job();
 		$this->run_slack_job();
-		$this->notify_about_unsent_invoices();
 		$this->invite_paid_members_to_lounge();
 	}
 
@@ -45,7 +44,6 @@ class dtbaker_member_cron {
 		<pre><?php $this->notify_about_freeloaders( true ); ?></pre>
 		<pre><?php $this->run_cron_job( true ); ?></pre>
 		<pre><?php $this->run_slack_job( true ); ?></pre>
-		<pre><?php $this->notify_about_unsent_invoices( true ); ?></pre>
 		<pre><?php $this->invite_paid_members_to_lounge( true ); ?></pre>
 		<?php
 	}
@@ -329,134 +327,6 @@ class dtbaker_member_cron {
 		set_transient( 'ts_freeloader_notifications', $last_notifications, 604800 ); // 1 week.
 	}
 
-
-	public function notify_about_unsent_invoices( $debug = false ) {
-		// this just finds invoies that haven't been sent yet and prompts us to follow up.
-		$member_manager = dtbaker_member::get_instance();
-		$member_types   = $member_manager->get_member_types();
-
-		// loop over all members.
-		// grab an updated list of invoices for those members.
-		// update membership expiry date for any paid invoices.
-		// check its association to a member.
-		$members = get_posts( array(
-			'post_type'      => 'dtbaker_membership',
-			'post_status'    => 'publish',
-			'posts_per_page' => - 1,
-		) );
-		ini_set( 'display_errors', true );
-		ini_set( 'error_reporting', E_ALL );
-
-		$last_notifications = get_transient( 'ts_invoice_notifications' );
-		if ( ! is_array( $last_notifications ) ) {
-			$last_notifications = array();
-		}
-
-		foreach ( $members as $member ) {
-			$membership_details = $member_manager->get_details( $member->ID );
-			if ( ! empty( $membership_details['xero_id'] ) ) {
-
-				if ( ! empty( $membership_details['automatic_type'] ) && ( $membership_details['automatic_type'] == 'manual_invoice' || $membership_details['automatic_type'] == 'ignore' ) ) {
-					continue;
-				}
-				$invoices = dtbaker_xero::get_instance()->get_contact_invoices( $membership_details['xero_id'], false );
-				if ( $invoices ) {
-
-					$recheck_invoices = false;
-					foreach ( $invoices as $invoice_id => $invoice ) {
-						if ( ! $invoice['emailed'] && ! $invoice['paid_time'] ) {
-
-							continue; // skip all this stuff now.
-
-							if ( ! empty( $membership_details['automatic_type'] ) && $membership_details['automatic_type'] == 'invoice_no_email' ) {
-								$this->send_notification( "NOT emailing invoice to " . $member->post_title . " due to member settings.\n$" . $invoice['total'] . " on " . date( 'Y-m-d', $invoice['time'] ) . ". \nXero Link: https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=$invoice_id ", 'moneybag', $member->ID );
-								continue;
-							}
-
-							if ( dtbaker_xero::get_instance()->email_invoice( $membership_details['xero_id'], $invoice_id ) ) {
-								$this->send_notification( "Successfully emailed invoice to " . $member->post_title . ".\n$" . $invoice['total'] . " on " . date( 'Y-m-d', $invoice['time'] ) . ". \nXero Link: https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=$invoice_id ", 'moneybag', $member->ID );
-							} else {
-								$this->send_notification( "ERROR! Failed to email invoice to " . $member->post_title . ".\n$" . $invoice['total'] . " on " . date( 'Y-m-d', $invoice['time'] ) . ". \nXero Link: https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=$invoice_id ", 'moneybag', $member->ID );
-							}
-
-							/*if ( ! isset( $last_notifications[ $invoice_id ] ) ) {
-								$last_notifications[ $invoice_id ] = true;
-
-								//								echo "New Invoice for " . $member->post_title . " has been generated and needs to be emailed.<br>\nhttps://gctechspace.org/wp-admin/post.php?post=".$member->ID."&action=edit<br>\n$" . $invoice['total'] . " on " . date( 'Y-m-d', $invoice['time'] ) . ". \nSomeone please manually email invoice to member: https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=$invoice_id " . '<br><br>';
-								$this->send_notification( "New Invoice for " . $member->post_title . " has been generated and needs to be emailed.\n$" . $invoice['total'] . " on " . date( 'Y-m-d', $invoice['time'] ) . ". \nSomeone please manually email invoice to member: https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=$invoice_id ", 'moneybag', $member->ID );
-
-							} else {
-								// we have previously sent a notification, check if it's marked as sent.
-								echo "Checkin invoices...<br>";
-								$recheck_invoices = true;
-							}*/
-						}
-					}
-					if ( $recheck_invoices ) {
-
-						$contact_id = $membership_details['xero_id'];
-
-						// This is a copy of get_contact_invoices. We hack it in here so we can send slack notifications.
-						$XeroOAuth    = dtbaker_xero::get_instance()->_xero_api_init();
-						$all_invoices = get_transient( 'techspace_xero_invoices' );
-						if ( ! $all_invoices || ! is_array( $all_invoices ) ) {
-							$all_invoices = array();
-						}
-						$response = $XeroOAuth->request( 'GET', $XeroOAuth->url( 'Invoices', 'core' ), array(
-							'Where' => 'Contact.ContactID = Guid("' . $contact_id . '")',
-						) );
-						if ( $XeroOAuth && isset( $XeroOAuth->response['code'] ) && $XeroOAuth->response['code'] == 200 ) {
-							$invoices = $XeroOAuth->parseResponse( $XeroOAuth->response['response'], $XeroOAuth->response['format'] );
-							if ( count( $invoices->Invoices[0] ) >= 1 ) {
-								foreach ( $invoices->Invoices[0] as $invoice ) {
-									if ( $invoice ) {
-										$invoice_id     = (string) $invoice->InvoiceID;
-										$invoice_type   = (string) $invoice->Type;
-										$invoice_status = (string) $invoice->Status;
-										if ( $invoice_type == 'ACCREC' && $invoice_status != 'VOIDED' ) {
-											if ( ! isset( $all_invoices[ $contact_id ] ) ) {
-												$all_invoices[ $contact_id ] = array();
-											}
-											// we're updating an existing invoice in our system.
-											if ( isset( $all_invoices[ $contact_id ][ $invoice_id ] ) ) {
-												// send a thank you notification if the status has changed.
-												if ( ! $all_invoices[ $contact_id ][ $invoice_id ]['emailed'] && (string) $invoice->SentToContact === "true" ) {
-													$this->send_notification( "Thanks for emailing invoice  " . (string) $invoice->InvoiceNumber . " to " . $member->post_title . "!", 'clap', $member->ID );
-												}
-											}
-											$all_invoices[ $contact_id ][ $invoice_id ] = array(
-												'number'    => (string) $invoice->InvoiceNumber,
-												'time'      => strtotime( (string) $invoice->Date ),
-												'paid_time' => isset( $invoice->FullyPaidOnDate ) ? strtotime( (string) $invoice->FullyPaidOnDate ) : false,
-												'status'    => $invoice_status,
-												'total'     => (string) $invoice->Total,
-												'due'       => (string) $invoice->AmountDue,
-												'emailed'   => ( (string) $invoice->SentToContact === "true" ), // convert string to bool
-											);
-										}
-									}
-								}
-								if ( $all_invoices ) {
-									// sort by name.
-									/*uasort($all_invoices, function($a, $b) {
-										return strnatcasecmp($a['name'], $b['name']);
-									});*/
-									set_transient( 'techspace_xero_invoices', $all_invoices, 12 * HOUR_IN_SECONDS );
-								}
-							}
-						} else {
-							// log error?
-						}
-
-					}
-				}
-			}
-		}
-
-		set_transient( 'ts_invoice_notifications', $last_notifications, 12 * HOUR_IN_SECONDS );
-
-	}
-
 	public function run_cron_job( $debug = false ) {
 		$member_manager = dtbaker_member::get_instance();
 		$member_types   = $member_manager->get_member_types();
@@ -495,9 +365,6 @@ class dtbaker_member_cron {
 			}
 
 			$invoices = [];
-			if ( ! empty( $membership_details['xero_id'] ) ) {
-				$invoices = $invoices + dtbaker_xero::get_instance()->get_contact_invoices( $membership_details['xero_id'], true );
-			}
 			if ( ! empty( $membership_details['square_id'] ) ) {
 				$invoices = $invoices + TechSpace_Square::get_instance()->get_contact_invoices( $membership_details['square_id'], true );
 			}
@@ -615,7 +482,7 @@ class dtbaker_member_cron {
 								if ( $member_type['months'] == $membership_type ) {
 
 									$invoice_details = array(
-										'contact_id'  => $membership_details['xero_id'],
+										'contact_id'  => $membership_details['square_id'],
 										'date'        => date( 'Y-m-d', $membership_details['member_end'] ),
 										'due_date'    => date( 'Y-m-d', strtotime( '+7 days', $membership_details['member_end'] ) ),
 										'item_code'   => $member_type['code'],
