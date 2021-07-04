@@ -54,37 +54,49 @@ class TechSpace_Square {
 			echo 'square';
 			ini_set( 'display_errors', true );
 			ini_set( 'error_reporting', E_ALL );
-			$callbackBody = file_get_contents( 'php://input' );
-			mail( 'dtbaker@gmail.com', 'Square Webhook', $callbackBody );
-			exit;
 		}
 	}
 
-	public function _square_api_init() {
-		require( __DIR__ . '/../connect-php-sdk-master/autoload.php' );
-		\SquareConnect\Configuration::getDefaultConfiguration()->setAccessToken( get_option( 'techspace_membership_square_access_token' ) );
+	public function get_square_location_id() {
+		return get_option( 'techspace_membership_square_location_id' );
+	}
+
+	public function get_square_client() {
+		$client = new \Square\SquareClient( [
+			'accessToken' => get_option( 'techspace_membership_square_access_token' ),
+			'environment' => get_option( 'techspace_membership_square_environment' ),
+		] );
+
+		return $client;
 	}
 
 	public function get_all_contacts( $force = false ) {
-		$this->_square_api_init();
-		$all_contacts = get_transient( 'techspace_square_contacts' );
+		$square_client = $this->get_square_client();
+		$all_contacts  = get_transient( 'techspace_square_contacts' );
 		if ( ! $force && $all_contacts && is_array( $all_contacts ) ) {
 			return $all_contacts;
 		} else {
 			$all_contacts = array();
 		}
-		$api_instance = new SquareConnect\Api\CustomersApi();
-		try {
-			$result = $api_instance->listCustomers();
-			foreach ( $result->getCustomers() as $customer ) {
-				$all_contacts[ $customer->getId() ] = array(
-					'name'  => $customer->getGivenName() . ' ' . $customer->getFamilyName(),
-					'email' => $customer->getEmailAddress(),
-				);
-			}
-		} catch ( Exception $e ) {
 
-		}
+		$customersApi = $square_client->getCustomersApi();
+		$cursor       = false;
+		do {
+			$apiResponse = $customersApi->listCustomers( $cursor );
+			$cursor      = '';
+			if ( $apiResponse->isSuccess() ) {
+				/** @var $listCustomersResponse \Square\Models\ListCustomersResponse */
+				$listCustomersResponse = $apiResponse->getResult();
+				$cursor                = $listCustomersResponse->getCursor();
+				foreach ( $listCustomersResponse->getCustomers() as $customer ) {
+					$all_contacts[ $customer->getId() ] = array(
+						'name'  => $customer->getGivenName() . ' ' . $customer->getFamilyName(),
+						'email' => $customer->getEmailAddress(),
+					);
+				}
+			}
+		} while ( $cursor );
+
 		if ( $all_contacts ) {
 			// sort by name.
 			uasort( $all_contacts, function ( $a, $b ) {
@@ -98,55 +110,80 @@ class TechSpace_Square {
 
 
 	public function get_contact_invoices( $contact_id, $force = false ) {
-		$this->_square_api_init();
-		$all_invoices = get_transient( 'techspace_square_invoices' );
-		if ( ! $force && $all_invoices && isset( $all_invoices[ $contact_id ] ) ) {
-			return $all_invoices[ $contact_id ];
-		} else if ( ! $all_invoices ) {
+		$square_client = $this->get_square_client();
+
+		if ( ! $force ) {
+			$all_invoices = get_transient( 'techspace_square_invoices' );
+			if ( $all_invoices && isset( $all_invoices[ $contact_id ] ) ) {
+				return $all_invoices[ $contact_id ];
+			}
+		}
+		if ( ! isset( $all_invoices ) || ! is_array( $all_invoices ) ) {
 			$all_invoices = array();
 		}
 
-		// techspace location
-		$location_id     = 'DQYMWM0W27CD8';
-		$translation_api = new SquareConnect\Api\TransactionsApi();
-		try {
-			$begin_transaction_time = strtotime( '-120 days' );
-			$next_cursor            = null;
-			do {
-				$result      = $translation_api->listTransactions( $location_id, date( 'Y-m-d\TH:i:sP', $begin_transaction_time ), null, null, $next_cursor );
-				$next_cursor = $result->getCursor();
-				foreach ( $result->getTransactions() as $transaction ) {
-					foreach ( $transaction->getTenders() as $tender ) {
-						$customer_id             = $tender->getCustomerId();
-						$transaction_description = $tender->getNote();
-						$money                   = $tender->getAmountMoney();
-						$transaction_price       = (int) ( $money->getAmount() / 100 );
-						$transaction_time        = strtotime( $transaction->getCreatedAt() );
-						$tender_id= $tender->getId();
-
-						if($customer_id) {
-							if ( ! isset( $all_invoices[ $customer_id ] ) ) {
-								$all_invoices[ $customer_id ] = array();
-							}
-							$all_invoices[ $customer_id ][ $tender_id ] = array(
-								'number'    => (string) $tender_id,
-								'time'      => $transaction_time,
-								'paid_time' => $transaction_time,
-								'status'    => 'PAID',
-								'total'     => $transaction_price,
-								'due'       => 0,
-								'emailed'   => true,
-							);
-
-							//echo "Customer: $customer_id ($transaction_description) for $transaction_price ( " . date( 'Y-m-d', $transaction_time ) . ") <br>\n";
-						}
-					}
-				}
-			} while ( $next_cursor );
-		} catch ( Exception $e ) {
-			echo 'Exception when calling TransactionApi->listTransactions: ', $e->getMessage(), PHP_EOL;
+		if ( ! isset( $all_invoices[ $contact_id ] ) ) {
+			$all_invoices[ $contact_id ] = array();
 		}
 
+		$body_query_filter_locationIds = [ $this->get_square_location_id() ];
+		$body_query_filter             = new \Square\Models\InvoiceFilter(
+			$body_query_filter_locationIds
+		);
+		$body_query_filter->setCustomerIds( [ $contact_id ] );
+		$body_query            = new \Square\Models\InvoiceQuery(
+			$body_query_filter
+		);
+		$body_query_sort_field = 'INVOICE_SORT_DATE';
+		$body_query->setSort( new \Square\Models\InvoiceSort(
+			$body_query_sort_field
+		) );
+		$body_query->getSort()->setOrder( \Square\Models\SortOrder::DESC );
+		$body = new \Square\Models\SearchInvoicesRequest(
+			$body_query
+		);
+		$body->setLimit( 164 );
+		$body->setCursor( 'cursor0' );
+
+		$invoicesApi = $square_client->getInvoicesApi();
+		$apiResponse = $invoicesApi->searchInvoices( $body );
+
+		if ( $apiResponse->isSuccess() ) {
+			$searchInvoicesResponse = $apiResponse->getResult();
+			$searchInvoices         = $searchInvoicesResponse->getInvoices();
+			if ( $searchInvoices ) {
+				/** @var $invoice \Square\Models\Invoice */
+				foreach ( $searchInvoices as $invoice ) {
+
+					$invoice_id        = $invoice->getId();
+					$invoice_status    = $invoice->getStatus();
+					$invoice_timestamp = strtotime( $invoice->getCreatedAt() );
+					$payment_requests  = $invoice->getPaymentRequests();
+					if ( $payment_requests ) {
+						$payment_request   = $payment_requests[0];
+						$invoice_total     = $payment_request->getComputedAmountMoney()->getAmount() / 100;
+						$invoice_timestamp = strtotime( $payment_request->getDueDate() );
+					} else {
+						$invoice_total = 0;
+					}
+
+					$all_invoices[ $contact_id ] [ $invoice_id ] = array(
+						'number'    => $invoice->getInvoiceNumber(),
+						'time'      => $invoice_timestamp,
+						'paid_time' => $invoice_status === 'PAID' ? $invoice_timestamp : false,
+						'status'    => $invoice_status,
+						'total'     => $invoice_total,
+						'due'       => $invoice_status === 'PAID' ? 0 : $invoice_total,
+						'emailed'   => ! empty( $invoice->getPaymentRequests() ),
+					);
+				}
+			}
+		} else {
+			$errors = $apiResponse->getErrors();
+			echo 'Failed to get contact errors';
+			print_r( $errors );
+			exit;
+		}
 
 		if ( $all_invoices ) {
 			set_transient( 'techspace_square_invoices', $all_invoices, 12 * HOUR_IN_SECONDS );
@@ -155,72 +192,153 @@ class TechSpace_Square {
 		return isset( $all_invoices[ $contact_id ] ) ? $all_invoices[ $contact_id ] : array();
 	}
 
-
-
 	public function create_contact( $details ) {
 
-		$bits = explode(' ',$details['name']);
+		$bits = explode( ' ', $details['name'] );
 
-		$this->_square_api_init();
-		$customer_api = new \SquareConnect\Api\CustomersApi();
-		$body = new \SquareConnect\Model\CreateCustomerRequest(); // \SquareConnect\Model\CreateCustomerRequest | An object containing the fields to POST for the request.  See the corresponding object definition for field details.
-		$body->setGivenName(array_shift($bits));
-		$body->setFamilyName(implode(' ',$bits));
-		$body->setEmailAddress($details['email']);
-		$body->setPhoneNumber($details['phone']);
+		$square_client = $this->get_square_client();
+		$customersApi  = $square_client->getCustomersApi();
 
-		try {
-			$customer    = $customer_api->createCustomer( $body );
-			$customer_id = $customer->getCustomer()->getId();
+		$body = new \Square\Models\CreateCustomerRequest;
+		$body->setGivenName( array_shift( $bits ) );
+		$body->setFamilyName( implode( ' ', $bits ) );
+		$body->setEmailAddress( $details['email'] );
+		$body->setPhoneNumber( $details['phone'] );
+		$body->setNote( 'Customer created from WordPress' );
+
+		$apiResponse = $customersApi->createCustomer( $body );
+
+		if ( $apiResponse->isSuccess() ) {
+			$createCustomerResponse = $apiResponse->getResult();
+			$customer_id            = $createCustomerResponse->getCustomer()->getId();
 			if ( $customer_id ) {
 				return $customer_id;
+			} else {
+				echo 'Failed to get customer ID';
+				exit;
 			}
-		}catch(Exception $e){
-			echo 'Exception when calling create customer: ', $e->getMessage(), PHP_EOL;
+		} else {
+			$errors = $apiResponse->getErrors();
+			echo 'Exception when calling create customer: ';
+			print_r( $errors );
 			exit;
 		}
-		return false;
 	}
 
-	public function create_invoice( $square_customer_id, $invoice_details ) {
 
-		// THIS DOESN"T WORK :( it's not possible to create invoices through the API
+	/**
+	 * @param $member_database_id int
+	 * @param $square_customer_id string
+	 * @param $invoice_details array
+	 *  name  line item name
+	 *  money  in cents
+	 *  due_date  Y-m-d
+	 *
+	 * @return false|mixed
+	 */
+	public function create_invoice( $member_database_id, $square_customer_id, $invoice_details ) {
+		$square_client = $this->get_square_client();
 
-		$this->_square_api_init();
-		$orders_api = new \SquareConnect\Api\OrdersApi();
-		// techspace location
-		$location_id     = 'DQYMWM0W27CD8';
+		// CREATE ORDER FIRST:
 
-		$line_item = new \SquareConnect\Model\OrderLineItem();
-		$line_item->setName($invoice_details['name']);
-		$line_item->setQuantity($invoice_details['quantity']);
-		$money = new \SquareConnect\Model\Money();
-		$money->setAmount($invoice_details['money']);
-		$money->setCurrency('AUD');
-		$line_item->setBasePriceMoney($money);
+		$base_price_money = new \Square\Models\Money();
+		$base_price_money->setAmount( $invoice_details['money'] );
+		$base_price_money->setCurrency( 'AUD' );
 
-		$order  = new \SquareConnect\Model\Order();
-		$order->setLocationId($location_id);
-		$order->setCustomerId($square_customer_id);
-		$order->setLineItems([$line_item]);
+		$order_line_item = new \Square\Models\OrderLineItem( '1' );
+		$order_line_item->setName( $invoice_details['name'] );
+		$order_line_item->setBasePriceMoney( $base_price_money );
 
-		$body = new \SquareConnect\Model\CreateOrderRequest();
-		$body->setIdempotencyKey('Order-'.$square_customer_id.'-'.time());
-		$body->setOrder($order);
+		$tax = new \Square\Models\OrderLineItemTax();
+		$tax->setName( 'GST' );
+		$tax->setPercentage( '10' );
+		$tax->setType( 'INCLUSIVE' );
 
-		print_r($body);
+		$line_items = [ $order_line_item ];
+		$order      = new \Square\Models\Order( $this->get_square_location_id() );
+		$order->setCustomerId( $square_customer_id );
+		$order->setLineItems( $line_items );
+		$order->setTaxes( [ $tax ] );
 
-		try {
-			$order_id = $orders_api->createOrder( $location_id, $body);
-			if ( $order_id ) {
-				echo 'done';exit;
-				return $order_id;
-			}
-		}catch(Exception $e){
-			echo 'Exception when creating order: ', $e->getMessage(), PHP_EOL;
+		$body = new \Square\Models\CreateOrderRequest();
+		$body->setOrder( $order );
+		$body->setIdempotencyKey( md5( $square_customer_id . serialize( $invoice_details ) ) );
+
+		$api_response = $square_client->getOrdersApi()->createOrder( $body );
+
+		if ( ! $api_response->isSuccess() ) {
+			$errors = $api_response->getErrors();
+			echo "Failed to create square order";
+			print_r( $errors );
 			exit;
 		}
-		return false;
+
+		/** @var $create_order_result \Square\Models\CreateOrderResponse */
+		$create_order_result = $api_response->getResult();
+		$created_order       = $create_order_result->getOrder();
+		$created_order_id    = $created_order->getId();
+
+		// CREATE INVOICE FOR THE ORDER:
+
+		$primary_recipient = new \Square\Models\InvoiceRecipient();
+		$primary_recipient->setCustomerId( $square_customer_id );
+
+		$invoice_payment_request = new \Square\Models\InvoicePaymentRequest();
+		$invoice_payment_request->setRequestType( 'BALANCE' );
+		$invoice_payment_request->setDueDate( $invoice_details['due_date'] );
+
+		$payment_requests         = [ $invoice_payment_request ];
+		$accepted_payment_methods = new \Square\Models\InvoiceAcceptedPaymentMethods();
+		$accepted_payment_methods->setCard( true );
+
+		$invoice = new \Square\Models\Invoice();
+		$invoice->setOrderId( $created_order_id );
+		$invoice->setTitle( $invoice_details['name'] );
+		$invoice->setPrimaryRecipient( $primary_recipient );
+		$invoice->setPaymentRequests( $payment_requests );
+		$invoice->setDeliveryMethod( 'EMAIL' );
+		$invoice->setAcceptedPaymentMethods( $accepted_payment_methods );
+
+		$body = new \Square\Models\CreateInvoiceRequest( $invoice );
+		$body->setIdempotencyKey( md5( $square_customer_id . $created_order_id ) );
+
+		$api_response = $square_client->getInvoicesApi()->createInvoice( $body );
+
+		if ( ! $api_response->isSuccess() ) {
+			$errors = $api_response->getErrors();
+			echo "Failed to create square invoice";
+			print_r( $errors );
+			exit;
+		}
+
+		/** @var $create_invoice_result \Square\Models\CreateInvoiceResponse */
+		$create_invoice_result = $api_response->getResult();
+		$created_invoice       = $create_invoice_result->getInvoice();
+		$created_invoice_id    = $created_invoice->getId();
+
+		// PUBLISH THE DRAFT INVOICE! YAY
+
+		$body = new \Square\Models\PublishInvoiceRequest( 0 );
+		$body->setIdempotencyKey( md5( $square_customer_id . $created_invoice_id ) );
+
+		$api_response = $square_client->getInvoicesApi()->publishInvoice( $created_invoice_id, $body );
+
+		if ( ! $api_response->isSuccess() ) {
+			$errors = $api_response->getErrors();
+			echo "Failed to publish square invoice";
+			print_r( $errors );
+			exit;
+		}
+
+		// reload invoice cache for member
+		sleep( 5 ); // Unforunately square takes a little while to actually publish things.
+		$invoices = TechSpace_Square::get_instance()->get_contact_invoices( $square_customer_id, true );
+		if ( $invoices ) {
+			$member_manager = dtbaker_member::get_instance();
+			$member_manager->cache_member_invoices( $member_database_id, $invoices );
+		}
+
+		return $created_invoice_id;
 	}
 
 }

@@ -2,7 +2,6 @@
 
 class dtbaker_member {
 
-
 	private static $instance = null;
 
 	public static function get_instance() {
@@ -23,37 +22,6 @@ class dtbaker_member {
 			$this,
 			'manage_dtbaker_membership_posts_custom_column'
 		), 10, 2 );
-
-
-		is_admin() && add_action( 'pre_get_posts', function ( $query ) {
-
-		} );
-
-		function extranet_orderby( $query ) {
-			// Nothing to do
-			if ( ! $query->is_main_query() || 'clientarea' != $query->get( 'post_type' ) ) {
-				return;
-			}
-
-			//-------------------------------------------
-			// Modify the 'orderby' and 'meta_key' parts
-			//-------------------------------------------
-			$orderby = strtolower( $query->get( 'orderby' ) );
-			$mods    = [
-				'office' => [ 'meta_key' => 'extranet_sort_office', 'orderby' => 'meta_value_num' ],
-				'date'   => [ 'meta_key' => 'extranet_appointment_date', 'orderby' => 'meta_value' ],
-				''       => [ 'meta_key' => 'extranet_appointment_date', 'orderby' => 'meta_value' ],
-				'type'   => [ 'meta_key' => 'extranet_sort_type', 'orderby' => 'meta_value_num' ],
-				'ip'     => [ 'meta_key' => 'extranet_insolvency_practioner', 'orderby' => 'meta_value_num' ],
-			];
-			$key     = 'extranet_sort_' . $orderby;
-			if ( isset( $mods[ $key ] ) ) {
-				$query->set( 'meta_key', $mods[ $key ]['meta_key'] );
-				$query->set( 'orderby', $mods[ $key ]['orderby'] );
-			}
-		}
-
-		add_action( 'init', array( $this, 'register_custom_post_type' ) );
 		add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
 		add_action( 'save_post', array( $this, 'save_meta_box' ) );
 
@@ -72,6 +40,15 @@ class dtbaker_member {
 			),
 			'rfid'           => 'RFID Keys',
 			'square_id'      => 'Square Contact',
+			'automatic_type' => array(
+				'title'   => 'Square Automation',
+				'type'    => 'select',
+				'options' => array(
+					'invoice_email'  => '(default) Generate Recurring Invoices on membership renewal date',
+					'manual_invoice' => 'Prompt for manual invoice generation',
+					'ignore'         => 'Do NOT generate auto invoices (i.e. recurring invoices are setup in square)',
+				)
+			),
 			'locker_number'  => 'Locker Number',
 			'member_start'   => array(
 				'title' => 'Member Start',
@@ -123,16 +100,6 @@ class dtbaker_member {
 				'title' => 'Valid Access Times',
 				'type'  => 'text',
 				'eg'    => 'mon8-13|wed9-11 for Monday 8am to 1pm access, plus Wed 9-11am access only.'
-			),
-			'automatic_type' => array(
-				'title'   => 'Automatic Type',
-				'type'    => 'select',
-				'options' => array(
-					'invoice_email'    => '(default) Generate Invoice, Automatic Email',
-					'invoice_no_email' => 'Generate Invoice, No Email',
-					'manual_invoice'   => 'Prompt for manual invoice generation',
-					'ignore'           => 'Ignore All Automatic Operations',
-				)
 			),
 		) );
 
@@ -391,9 +358,9 @@ class dtbaker_member {
 	public function manage_dtbaker_membership_posts_columns( $columns ) {
 		unset( $columns['author'] );
 		unset( $columns['date'] );
-		$columns['rfid']      = __( 'RFID' );
-		$columns['square_id'] = __( 'Square Contact' );
-		$columns['invoices']  = __( 'Invoices' );
+		$columns['rfid'] = __( 'RFID' );
+		//$columns['square_id'] = __( 'Square Contact' );
+		$columns['invoices'] = __( 'Invoices' );
 		//$columns['member_start'] = __( 'Membership Start' );
 		$columns['slack']      = __( 'Slack' );
 		$columns['phone']      = __( 'Phone' );
@@ -455,6 +422,12 @@ class dtbaker_member {
 				}
 				break;
 			case 'invoices':
+				if ( $membership_details['automatic_type'] ) {
+					echo "Automatic: " . $membership_details['automatic_type'] . "<br>\n";
+				}
+				if ( ! empty( $membership_details['square_id'] ) ) {
+					echo 'Square Contact: <a href="https://squareup.com/dashboard/customers/directory/customer/' . $membership_details['square_id'] . '" target="_blank">Open</a> <br>';
+				}
 				if ( ! empty( $membership_details['invoice_cache'] ) && is_array( $membership_details['invoice_cache'] ) && count( $membership_details['invoice_cache'] ) ) {
 					end( $membership_details['invoice_cache'] );
 					$this->_print_invoice_details( key( $membership_details['invoice_cache'] ), current( $membership_details['invoice_cache'] ) );
@@ -579,6 +552,8 @@ class dtbaker_member {
 						$contacts = TechSpace_Square::get_instance()->get_all_contacts( isset( $_REQUEST['square_refresh'] ) );
 						if ( empty( $membership_details['square_id'] ) ) {
 							$membership_details['square_id'] = 0;
+						} else if ( ! isset( $contacts[ $membership_details['square_id'] ] ) ) {
+							$contacts = TechSpace_Square::get_instance()->get_all_contacts( true );
 						}
 						?>
 						<select name="membership_details[square_id]">
@@ -605,12 +580,38 @@ class dtbaker_member {
 							?>
 							<br/>
 							<br/>
+							<div id="square_create_invoice_form">
+								<strong>Create a new Invoice in Square:</strong>
+								<?php /* square doesn't allow custom invoice dates
+                  <div class="dtbaker_member_form_field">
+									Invoice Date: <input type="text" name="square_invoice_date" value="" class="dtbaker-datepicker" autocomplete="off">
+								</div> */ ?>
+								<div class="dtbaker_member_form_field">
+									Membership Type: <select type="text" name="square_line_item">
+										<option value="">Please select</option>
+										<?php
+										$line_items = TechSpace_Cpt::get_instance()->get_member_types();
+										foreach ( $line_items as $line_item_id => $line_item ) {
+											?>
+											<option
+												value="<?php echo $line_item_id; ?>"><?php echo $line_item['name'] . ' $' . floor( $line_item['price'] / 100 ); ?></option>
+											<?php
+										}
+										?>
+									</select>
+								</div>
+								<div class="dtbaker_member_form_field">
+									<input type="button" name="create_invoice" value="Create and Email Invoice to Customer"
+									       onclick="jQuery('#publish').click();">
+								</div>
+							</div>
 							Square Invoices:
 							<a href="<?php echo add_query_arg( 'square_invoice_refresh', 1, get_edit_post_link( $post->ID ) ); ?>"
 							   class="member_inline_button">Refresh</a>
 							<a
 								class="member_inline_button"
-								href="https://squareup.com/dashboard/customers/directory/customer/<?php echo ! empty( $membership_details['square_id'] ) ? $membership_details['square_id'] : ''; ?>"
+								id="square_create_new_invoice"
+								href="#"
 								target="_blank">Create New Invoice</a>
 							<br/>
 							<?php
@@ -667,12 +668,11 @@ class dtbaker_member {
 			</div>
 			<?php
 		}
-
 	}
 
 	private function _print_invoice_details( $invoice_id, $invoice ) {
 		?>
-		<a href="https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=<?php echo esc_attr( $invoice_id ); ?>"
+		<a href="https://squareup.com/dashboard/invoices/<?php echo esc_attr( $invoice_id ); ?>"
 		   target="_blank"><?php echo esc_html( $invoice['number'] . ' ' . date( 'Y-m-d', $invoice['time'] ) . ' ' . $invoice['status'] . ' $' . $invoice['total'] ); ?></a> <?php
 		if ( $invoice['due'] > 0 ) {
 			?>
@@ -735,9 +735,7 @@ class dtbaker_member {
 		if ( isset( $_POST['membership_details'] ) && is_array( $_POST['membership_details'] ) ) {
 			$membership_details = $_POST['membership_details'];
 
-
 			if ( ! empty( $membership_details['square_id'] ) ) {
-
 				// create new contact if missing
 				if ( $membership_details['square_id'] == "CreateNew" ) {
 					$new_square_contact_id = TechSpace_Square::get_instance()->create_contact( array(
@@ -745,15 +743,29 @@ class dtbaker_member {
 						'email' => $membership_details['email'],
 						'phone' => $membership_details['phone'],
 					) );
-					$all_contacts     = TechSpace_Square::get_instance()->get_all_contacts( true );
-					if ( $new_square_contact_id && isset( $all_contacts[ $new_square_contact_id ] ) ) {
+					if ( $new_square_contact_id ) {
 						$membership_details['square_id'] = $new_square_contact_id;
 					} else {
-						echo 'Failed to create new contact in square';
+						echo 'Failed to create new contact in square, sometimes Square is just slow. Press back and click "Refresh List" in the "Square Contact" drop down to see if the contact was really created.';
 						exit;
 					}
 				}
+
+				// we have a valid contact in our system. are we generating an invoice?
+				if ( isset( $_POST['square_line_item'] ) && strlen( $_POST['square_line_item'] ) ) {
+					$line_items = TechSpace_Cpt::get_instance()->get_member_types();
+					if ( isset( $line_items[ $_POST['square_line_item'] ] ) ) {
+						$item = $line_items[ $_POST['square_line_item'] ];
+						TechSpace_Square::get_instance()->create_invoice( $post_id, $membership_details['square_id'], [
+							'name'     => $item['name'],
+							'money'    => $item['price'],
+							'due_date' => date( 'Y-m-d' ),
+						] );
+					}
+				}
+
 			}
+
 			foreach ( $this->detail_fields as $key => $val ) {
 				// format date fields as timestamps for easier querying.
 				if ( isset( $membership_details[ $key ] ) ) {
@@ -773,145 +785,6 @@ class dtbaker_member {
 			update_post_meta( $member_post_id, 'membership_details_invoice_cache', $invoices );
 		}
 	}
-
-	public function register_custom_post_type() {
-
-
-		$labels = array(
-			'name'              => _x( 'Access Points', 'taxonomy general name', 'techspace-membership' ),
-			'singular_name'     => _x( 'Access Point', 'taxonomy singular name', 'techspace-membership' ),
-			'search_items'      => __( 'Search Access', 'techspace-membership' ),
-			'all_items'         => __( 'All Access', 'techspace-membership' ),
-			'parent_item'       => __( 'Parent Access', 'techspace-membership' ),
-			'parent_item_colon' => __( 'Parent Access:', 'techspace-membership' ),
-			'edit_item'         => __( 'Edit Access', 'techspace-membership' ),
-			'update_item'       => __( 'Update Access', 'techspace-membership' ),
-			'add_new_item'      => __( 'Add New Access', 'techspace-membership' ),
-			'new_item_name'     => __( 'New Access Name', 'techspace-membership' ),
-			'menu_name'         => __( 'Access Points', 'techspace-membership' ),
-		);
-
-		$args = array(
-			'hierarchical'      => true,
-			'labels'            => $labels,
-			'show_ui'           => true,
-			'show_admin_column' => true,
-			'query_var'         => true,
-			'rewrite'           => array( 'slug' => 'member-access' ),
-		);
-
-		register_taxonomy( 'dtbaker_membership_access', array( 'dtbaker_membership' ), $args );
-
-
-		$labels = array(
-			'name'              => _x( 'Membership Type', 'taxonomy general name', 'techspace-membership' ),
-			'singular_name'     => _x( 'Membership Type', 'taxonomy singular name', 'techspace-membership' ),
-			'search_items'      => __( 'Search Membership Type', 'techspace-membership' ),
-			'all_items'         => __( 'All Membership Type', 'techspace-membership' ),
-			'parent_item'       => __( 'Parent Membership Type', 'techspace-membership' ),
-			'parent_item_colon' => __( 'Parent Membership Type:', 'techspace-membership' ),
-			'edit_item'         => __( 'Edit Membership Type', 'techspace-membership' ),
-			'update_item'       => __( 'Update Membership Type', 'techspace-membership' ),
-			'add_new_item'      => __( 'Add New Membership Type', 'techspace-membership' ),
-			'new_item_name'     => __( 'New Membership Type Name', 'techspace-membership' ),
-			'menu_name'         => __( 'Membership Types', 'techspace-membership' ),
-		);
-
-		$args = array(
-			'hierarchical'      => true,
-			'labels'            => $labels,
-			'show_ui'           => true,
-			'show_admin_column' => true,
-			'query_var'         => true,
-			'rewrite'           => array( 'slug' => 'member-membership-type' ),
-		);
-
-		register_taxonomy( 'dtbaker_membership_type', array( 'dtbaker_membership' ), $args );
-
-
-		$labels = array(
-			'name'               => 'Members',
-			'singular_name'      => 'Member',
-			'menu_name'          => 'Members',
-			'parent_item_colon'  => 'Parent Member:',
-			'all_items'          => 'All Members',
-			'view_item'          => 'View Member',
-			'add_new_item'       => 'Add New Member',
-			'add_new'            => 'New Member',
-			'edit_item'          => 'Edit Member',
-			'update_item'        => 'Update Member',
-			'search_items'       => 'Search Members',
-			'not_found'          => 'No Members found',
-			'not_found_in_trash' => 'No Members found in Trash',
-		);
-
-		$rewrite = array(
-			'slug'       => 'membership',
-			'with_front' => false,
-			'pages'      => true,
-			'feeds'      => true,
-		);
-		$args    = array(
-			'label'               => 'dtbaker_membership_item',
-			'description'         => 'Members',
-			'labels'              => $labels,
-			'supports'            => array( 'title', 'editor', 'thumbnail', 'page-attributes', 'revisions' ),
-			'taxonomies'          => array(),
-			'hierarchical'        => false,
-			'public'              => false,
-			'show_ui'             => true,
-			'show_in_menu'        => true,
-			'show_in_nav_menus'   => true,
-			'show_in_admin_bar'   => true,
-			'menu_position'       => 36,
-			'menu_icon'           => 'dashicons-admin-users',
-			'can_export'          => true,
-			'has_archive'         => false,
-			'exclude_from_search' => true,
-			'publicly_queryable'  => false,
-			'rewrite'             => $rewrite,
-			'capability_type'     => 'post',
-			'map_meta_cap'        => true,
-		);
-
-		register_post_type( 'dtbaker_membership', $args );
-
-
-	}
-
-	public function get_member_types() {
-
-		// todo: config utility to select which line items to store.
-		$member_types = array(
-			'5bc6f27f-4a9a-4e24-9ee9-7ca75e4b0496' => array(
-				'code'   => 'mem12MonthsFor10',
-				'name'   => '12 Months Membership',
-				'months' => '12',
-				'price'  => '250',
-			),
-			'b5f3cfc-6f3e-4311-978f-e36069929067'  => array(
-				'code'   => 'mem12Months',
-				'name'   => '12 Months Membership (Grandfathered $225)',
-				'months' => '12',
-				'price'  => '225',
-			),
-			/*'07860992-c84a-4633-9805-065aba35401b' => array(
-				'code'   => 'mem6Monthly',
-				'name'   => '6 Months Membership',
-				'months' => '6',
-				'price'  => '125',
-			),*/
-			'e11ddd97-062e-408f-abaa-2cdd1214a2aa' => array(
-				'code'   => 'memMonthly2016',
-				'name'   => '1 Month Membership',
-				'months' => '1',
-				'price'  => '25',
-			),
-		);
-
-		return $member_types;
-	}
-
 }
 
 dtbaker_member::get_instance()->init();

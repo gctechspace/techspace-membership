@@ -147,21 +147,17 @@ class TechSpace_Frontend_Submit {
 				}
 			}
 
-			$membership_category  = 0;
-			$membership_category_name = 0;
-			$membership_category_price = 0;
-			$available_categories = get_terms( 'dtbaker_membership_type', array(
-				'hide_empty' => false,
-			) );
-			foreach ( $available_categories as $available_category ) {
-				if ( $available_category->term_id == $_POST['membership_category'] ) {
-					$membership_category = $available_category->term_id;
-					$membership_category_name = $available_category->name;
-					if($membership_category == 157){
-						$membership_category_price = 250;
-					}else if($membership_category == 94){
-						$membership_category_price = 25;
-					}
+			$member_types                       = TechSpace_Cpt::get_instance()->get_member_types();
+			$membership_category                = 0;
+			$membership_category_name           = 0;
+			$membership_category_price          = 0;
+			$membership_category_square_enabled = false;
+			foreach ( $member_types as $member_type ) {
+				if ( $member_type['term_id'] == $_POST['membership_category'] ) {
+					$membership_category                = $member_type['term_id'];
+					$membership_category_name           = $member_type['name'];
+					$membership_category_price          = $member_type['price'];
+					$membership_category_square_enabled = $member_type['square_invoices'];
 				}
 			}
 
@@ -169,7 +165,6 @@ class TechSpace_Frontend_Submit {
 			$post    = array(
 				'post_title'   => wp_strip_all_tags( $title ),
 				'post_content' => "$membership_category_name Signup from website. IP Address: " . $_SERVER['REMOTE_ADDR'] . "\n\n\n" . wp_strip_all_tags( isset( $_POST['member_comments'] ) ? $_POST['member_comments'] : '' ),
-				//'post_category' => array($membership_category),  // Usable for custom taxonomies too
 				'post_status'  => 'draft',            // Choose: publish, preview, future, etc.
 				'post_type'    => 'dtbaker_membership'  // Use a custom post type if you want to
 			);
@@ -178,7 +173,9 @@ class TechSpace_Frontend_Submit {
 			if ( $post_id ) {
 				wp_set_object_terms( $post_id, $membership_category, 'dtbaker_membership_type' );
 
-				//print_r($post);print_r($details);exit;
+				// use the cron class to send slack notification.
+				$cron = dtbaker_member_cron::get_instance();
+
 				foreach ( $details as $key => $val ) {
 					// format date fields as timestamps for easier querying.
 					if ( $val ) {
@@ -191,23 +188,31 @@ class TechSpace_Frontend_Submit {
 					'email' => $details['email'],
 					'phone' => $details['phone'],
 				) );
-				$all_contacts     = TechSpace_Square::get_instance()->get_all_contacts( true );
-				if ( $new_square_contact_id && isset( $all_contacts[ $new_square_contact_id ] ) ) {
+
+				if ( $new_square_contact_id ) {
 					update_post_meta( $post_id, 'membership_details_square_id', $new_square_contact_id );
-//					TechSpace_Square::get_instance()->create_invoice($new_square_contact_id, [
-//						'name' => 'GC TechSpace Membership: ' . $membership_category_name,
-//						'quantity' => '1',
-//						'money' => $membership_category_price,
-//					]);
+
+					if ( $membership_category && $membership_category_square_enabled ) {
+						$new_invoice_id = TechSpace_Square::get_instance()->create_invoice( $post_id, $new_square_contact_id, [
+							'name'     => $membership_category_name,
+							'money'    => $membership_category_price,
+							'due_date' => date( 'Y-m-d' ),
+						] );
+						if ( $new_invoice_id ) {
+							$cron->send_notification( 'New member signed up on the website: "' . $title . '" for "' . $membership_category_name . '".\n An invoice has been automatically generated for this member:\n https://squareup.com/dashboard/invoices/' . $new_invoice_id, 'memo', $post_id );
+						} else {
+							$cron->send_notification( "Error: Failed to make invoice in Square for new member " . $title . ' - not sure why - check with dave?', 'moneybag', $post_id );
+						}
+					}else{
+						$cron->send_notification( 'New free member signed up on the website: "' . $title . '" for "' . $membership_category_name . '".', 'memo', $post_id );
+					}
+				} else {
+					$cron->send_notification( "Error: Failed to create a square contact for new signed up member " . $title . ' - not sure why :( ', 'moneybag', $post_id );
+					echo 'Sorry failed to create account, please contact support';
+					exit;
 				}
 
-				// use the cron class to send slack notification.
-				$cron = dtbaker_member_cron::get_instance();
-				$cron->send_notification( 'New member signup: "' . $title . '" for "'.$membership_category_name.'". Please generate a Square invoice manually: https://squareup.com/dashboard/customers/directory/customer/' . $new_square_contact_id, 'memo' );
-
 				wp_mail( "dtbaker@gmail.com", "TechSpace Membership Signup ($title)", "Member signup: $title. Type: $membership_category_name Square: $new_square_contact_id  Link: " . get_edit_post_link( $post_id ) );
-
-				//wp_mail("manager@gctechspace.org","TechSpace Membership Signup ($title)","Member signup: $title. Link: ".get_edit_post_link($post_id));
 			}
 
 			$location = get_permalink( get_page_by_title( 'Signup Success' ) );
@@ -229,29 +234,20 @@ class TechSpace_Frontend_Submit {
 			</div>
 
 			<div class="membership_form_element"><label for="membership_category">Membership Type:</label><br/>
-				<!--				<small>Details about membership types available on our website.</small>-->
-
-				<?php $available_categories = get_terms( 'dtbaker_membership_type', array(
-					'hide_empty' => false,
-				) );
-				$types_order                = array( 94, 157, 165, 166 ); //93, 95,  96
-
-				foreach ( $types_order as $type_id ) {
-					foreach ( $available_categories as $available_category ) {
-						if ( $available_category->term_id == $type_id ) {
-							?>
-							<div>
-								<input type="radio"
-								       id="membership_category_<?php echo (int) $available_category->term_id; ?>"
-								       value="<?php echo (int) $available_category->term_id; ?>"
-								       name="membership_category"/> <?php echo esc_html( $available_category->name ) . ' - ' . esc_html( $available_category->description ); ?>
-							</div>
-							<?php
-						}
+				<?php
+				$member_types = TechSpace_Cpt::get_instance()->get_member_types();
+				foreach ( $member_types as $member_type ) {
+					if ( $member_type['public_signup'] ) {
+						?>
+						<div>
+							<input type="radio"
+							       id="membership_category_<?php echo (int) $member_type['term_id']; ?>"
+							       value="<?php echo (int) $member_type['term_id']; ?>"
+							       name="membership_category"/> <?php echo esc_html( $member_type['name'] ) . ' - ' . esc_html( $member_type['description'] ); ?>
+						</div>
+						<?php
 					}
 				}
-
-				//wp_dropdown_categories( 'show_option_none=Membership+Type&tab_index=4&taxonomy=dtbaker_membership_type&hide_empty=0&name=membership_category' );
 				?>
 			</div>
 
@@ -276,7 +272,8 @@ class TechSpace_Frontend_Submit {
 			</div>
 
 
-			<div class="membership_form_element"><input type="submit" value="Submit" tabindex="6" id="submit" name="submit"/>
+			<div class="membership_form_element"><input type="submit" value="Submit" tabindex="6" id="submit" name="submit"
+			                                            onclick="var t = this; setTimeout(function(){ t.disabled=true; t.value='Loading please wait....';}, 30); return true;"/>
 			</div>
 
 		</form>
@@ -337,41 +334,41 @@ class TechSpace_Frontend_Submit {
 		ob_start();
 		?>
 		<style type="text/css">
-			.change-field {
-				display: inline-block;
-				width: 100%;
-				padding: 12px 12px;
-				font-size: 14px;
-				line-height: 1.428571429;
-				margin-bottom: 10px;
-				color: #666;
-				color: rgba(26, 26, 26, .7);
-				background-color: #fff;
-				background-image: none;
-				border: 1px solid #f2f2f2;
-				border-color: rgba(200, 200, 200, .4);
-				border-radius: 0;
-				-webkit-box-shadow: none;
-				box-shadow: none;
-				-webkit-transition: border-color ease-in-out .15s, box-shadow ease-in-out .15s;
-				transition: border-color ease-in-out .15s, box-shadow ease-in-out .15s;
-			}
+        .change-field {
+            display: inline-block;
+            width: 100%;
+            padding: 12px 12px;
+            font-size: 14px;
+            line-height: 1.428571429;
+            margin-bottom: 10px;
+            color: #666;
+            color: rgba(26, 26, 26, .7);
+            background-color: #fff;
+            background-image: none;
+            border: 1px solid #f2f2f2;
+            border-color: rgba(200, 200, 200, .4);
+            border-radius: 0;
+            -webkit-box-shadow: none;
+            box-shadow: none;
+            -webkit-transition: border-color ease-in-out .15s, box-shadow ease-in-out .15s;
+            transition: border-color ease-in-out .15s, box-shadow ease-in-out .15s;
+        }
 
-			.change-field .change-link {
+        .change-field .change-link {
 
-			}
+        }
 
-			.hidden-clicker {
-				display: none !important;
-			}
+        .hidden-clicker {
+            display: none !important;
+        }
 
-			.toggled-on .change-field {
-				display: none !important;
-			}
+        .toggled-on .change-field {
+            display: none !important;
+        }
 
-			.toggled-on .hidden-clicker {
-				display: inline-block !important;
-			}
+        .toggled-on .hidden-clicker {
+            display: inline-block !important;
+        }
 		</style>
 		<script type="text/javascript">
       (function ($) {
@@ -407,6 +404,7 @@ class TechSpace_Frontend_Submit {
 			</div>
 			<div class="membership_form_element"><label for="membership_category">Desired Membership Type:</label><br/>
 				<?php
+				// TODO: fix this edit member thing
 				$current_types        = wp_get_post_terms( $member_id, 'dtbaker_membership_type' );
 				$available_categories = get_terms( 'dtbaker_membership_type', array(
 					'hide_empty' => false,

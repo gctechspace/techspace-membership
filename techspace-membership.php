@@ -4,7 +4,7 @@
  * Plugin Name: Techspace Membership
  * Description: Membership management for techspace
  * Plugin URI: http://dtbaker.net
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: dtbaker
  * Author URI: http://dtbaker.net
  * Text Domain: techspace-membership
@@ -79,42 +79,6 @@ class DtbakerMembershipManager {
 		);
 
 		add_settings_field(
-			'techspace_membership_private_key',
-			'Private Key',
-			array( $this, 'settings_callback_private_key' ),
-			'techspace_member_settings',
-			'techspace_membership_section'
-		);
-		register_setting( 'techspace_member_settings', 'techspace_membership_private_key' );
-
-		add_settings_field(
-			'techspace_membership_public_key',
-			'Public Key',
-			array( $this, 'settings_callback_public_key' ),
-			'techspace_member_settings',
-			'techspace_membership_section'
-		);
-		register_setting( 'techspace_member_settings', 'techspace_membership_public_key' );
-
-		add_settings_field(
-			'techspace_membership_consumer_key',
-			'Consumer Key',
-			array( $this, 'settings_callback_consumer_key' ),
-			'techspace_member_settings',
-			'techspace_membership_section'
-		);
-		register_setting( 'techspace_member_settings', 'techspace_membership_consumer_key' );
-
-		add_settings_field(
-			'techspace_membership_secret_key',
-			'Secret Key',
-			array( $this, 'settings_callback_secret_key' ),
-			'techspace_member_settings',
-			'techspace_membership_section'
-		);
-		register_setting( 'techspace_member_settings', 'techspace_membership_secret_key' );
-
-		add_settings_field(
 			'techspace_membership_api_secret',
 			'Our API Secret',
 			array( $this, 'settings_callback_api_secret' ),
@@ -168,6 +132,24 @@ class DtbakerMembershipManager {
 		register_setting( 'techspace_member_settings', 'techspace_membership_square_access_token' );
 
 		add_settings_field(
+			'techspace_membership_square_location_id',
+			'Square Location ID',
+			array( $this, 'settings_callback_square_location_id' ),
+			'techspace_member_settings',
+			'techspace_membership_section'
+		);
+		register_setting( 'techspace_member_settings', 'techspace_membership_square_location_id' );
+
+		add_settings_field(
+			'techspace_membership_square_environment',
+			'Square Environment (production or sandbox)',
+			array( $this, 'settings_callback_square_environment' ),
+			'techspace_member_settings',
+			'techspace_membership_section'
+		);
+		register_setting( 'techspace_member_settings', 'techspace_membership_square_environment' );
+
+		add_settings_field(
 			'techspace_membership_square_webhook_signature',
 			'Square Webhook Signature',
 			array( $this, 'settings_callback_square_webhook_signature' ),
@@ -195,70 +177,49 @@ class DtbakerMembershipManager {
 		echo '<p>Please set the TechSpace membership settings below:</p>';
 	}
 
-	public function settings_callback_private_key() {
-		$setting = esc_attr( get_option( 'techspace_membership_private_key' ) );
-		?> <textarea name="techspace_membership_private_key" class="techspace-edit-form"
-		             placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New Private Key Here'; ?>"></textarea> <?php
-	}
-
-	public function settings_callback_public_key() {
-		$setting = esc_attr( get_option( 'techspace_membership_public_key' ) );
-		?> <textarea name="techspace_membership_public_key" class="techspace-edit-form"
-		             placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New Public Key Here'; ?>"></textarea> <?php
-	}
-
-	public function settings_callback_consumer_key() {
-		$setting = esc_attr( get_option( 'techspace_membership_consumer_key' ) );
-		?> <input type="text" name="techspace_membership_consumer_key" class="techspace-edit-form"
-		          placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New consumer Key Here'; ?>"><?php
-	}
-
-	public function settings_callback_secret_key() {
-		$setting = esc_attr( get_option( 'techspace_membership_secret_key' ) );
-		?> <input type="text" name="techspace_membership_secret_key" class="techspace-edit-form"
-		          placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New secret Key Here'; ?>"><?php
-	}
-
 	public function settings_callback_api_secret() {
 		$setting = esc_attr( get_option( 'techspace_membership_api_secret' ) );
-		?> <input type="text" name="techspace_membership_api_secret" class="techspace-edit-form"
-		          placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New secret Key Here'; ?>"><?php
+		?> <input type="password" name="techspace_membership_api_secret" class="techspace-edit-form" value="<?php echo $setting ;?>"> <?php
 	}
 
 	public function settings_callback_slack_api() {
 		$setting = esc_attr( get_option( 'techspace_membership_slack_api' ) );
-		?> <input type="text" name="techspace_membership_slack_api" class="techspace-edit-form"
-		          placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New secret Key Here'; ?>"><?php
+		?> <input type="password" name="techspace_membership_slack_api" class="techspace-edit-form" value="<?php echo $setting ;?>"> <?php
 	}
 
 	public function settings_callback_slack_real_token() {
 		$setting = esc_attr( get_option( 'techspace_membership_slack_real_token' ) );
-		?> <input type="text" name="techspace_membership_slack_real_token" class="techspace-edit-form"
-		          placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New secret Key Here'; ?>"><?php
+		?> <input type="password" name="techspace_membership_slack_real_token" class="techspace-edit-form" value="<?php echo $setting ;?>"> <?php
 	}
 
 	public function settings_callback_wifi_api() {
 		$setting = esc_attr( get_option( 'techspace_membership_wifi_password' ) );
-		?> <input type="text" name="techspace_membership_wifi_password" class="techspace-edit-form"
-		          placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New Wifi Password Here'; ?>"><?php
+		?> <input type="password" name="techspace_membership_wifi_password" class="techspace-edit-form" value="<?php echo $setting ;?>"> <?php
 	}
 
 	public function settings_callback_square_app_id() {
 		$setting = esc_attr( get_option( 'techspace_membership_square_app_id' ) );
-		?> <input type="text" name="techspace_membership_square_app_id" class="techspace-edit-form"
-		          placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New Square App ID here'; ?>"><?php
+		?> <input type="password" name="techspace_membership_square_app_id" class="techspace-edit-form" value="<?php echo $setting ;?>"> <?php
 	}
 
 	public function settings_callback_square_access_token() {
 		$setting = esc_attr( get_option( 'techspace_membership_square_access_token' ) );
-		?> <input type="text" name="techspace_membership_square_access_token" class="techspace-edit-form"
-		          placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New Square Access Token Here'; ?>"><?php
+		?> <input type="password" name="techspace_membership_square_access_token" class="techspace-edit-form" value="<?php echo $setting ;?>"> <?php
+	}
+
+	public function settings_callback_square_location_id() {
+		$setting = esc_attr( get_option( 'techspace_membership_square_location_id' ) );
+		?> <input type="password" name="techspace_membership_square_location_id" class="techspace-edit-form" value="<?php echo $setting ;?>"> <?php
+	}
+
+	public function settings_callback_square_environment() {
+		$setting = esc_attr( get_option( 'techspace_membership_square_environment' ) );
+		?> <input type="password" name="techspace_membership_square_environment" class="techspace-edit-form" value="<?php echo $setting ;?>"> <?php
 	}
 
 	public function settings_callback_square_webhook_signature() {
 		$setting = esc_attr( get_option( 'techspace_membership_square_webhook_signature' ) );
-		?> <input type="text" name="techspace_membership_square_webhook_signature" class="techspace-edit-form"
-		          placeholder="<?php echo strlen( $setting ) ? 'Already Saved' : 'Paste New Square Access Token Here'; ?>">
+		?> <input type="password" name="techspace_membership_square_webhook_signature" class="techspace-edit-form" value="<?php echo $setting ;?>">
 		<code>https://gctechspace.org/api/square/webhook</code>
 		<?php
 	}
@@ -404,9 +365,9 @@ EOT;
 
 DtbakerMembershipManager::get_instance()->init();
 
+require_once 'inc/class.cpt.php';
 require_once 'inc/class.table.php';
 require_once 'inc/class.api.php';
-require_once 'inc/class.xero.php';
 require_once 'inc/class.submit.php';
 require_once 'inc/class.square.php';
 
@@ -414,3 +375,5 @@ require_once 'inc/class.member.php';
 require_once 'inc/class.rfid.php';
 require_once 'inc/class.cron.php';
 require_once 'inc/class.stats.php';
+
+require_once 'vendor/autoload.php';
