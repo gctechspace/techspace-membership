@@ -51,18 +51,26 @@ class dtbaker_rfid {
 		?>
 		<div class="wrap">
 			<h1>RFID History Log</h1>
-
 			<?php
-			ini_set( 'display_errors', true );
-			ini_set( 'error_reporting', E_ALL );
-			$myListTable = new TechSpaceRFIDHistoryTable( array(
+			$myListTable = new TechSpaceCustomTable( array(
 				'screen' => 'rfid_history'
 			) );
 			global $wpdb;
 			$history = $wpdb->get_results(
 				"SELECT * 
-				FROM `" . $wpdb->prefix . "ts_rfid` ORDER BY ts_rfid DESC"
+				FROM `" . $wpdb->prefix . "ts_rfid` ORDER BY ts_rfid DESC LIMIT 100"
 				, ARRAY_A
+			);
+			$myListTable->set_columns(
+				array(
+					'ts_rfid'    => __( 'History ID' ),
+					'member_id'  => __( 'Member' ),
+					'rfid_id'    => __( 'RFID' ),
+					'time'       => __( 'Time' ),
+					'access'     => __( 'Access Point' ),
+					'ip_address' => __( 'IP Address' ),
+					'api_result' => __( 'API Result' ),
+				)
 			);
 			$myListTable->set_data( $history );
 			$myListTable->set_callback( function ( $item, $column_name ) {

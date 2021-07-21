@@ -279,6 +279,20 @@ CREATE TABLE {$wpdb->prefix}ts_rfid (
   KEY member_id (member_id),
   KEY rfid_id (rfid_id)
 ) DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;
+
+CREATE TABLE {$wpdb->prefix}ts_buck (
+  ts_buck int(11) NOT NULL AUTO_INCREMENT,
+  member_id int(11) NOT NULL,
+  timestamp int(11) NOT NULL DEFAULT '0',
+  amount DECIMAL(12,6) NOT NULL DEFAULT '0',
+  verified int(1) NOT NULL DEFAULT '0',
+  state varchar(20) NOT NULL DEFAULT 'pending',
+  comment varchar(254) NOT NULL DEFAULT '',
+  metadata LONGTEXT NULL,
+  PRIMARY KEY  ts_buck (ts_buck),
+  KEY member_id (member_id)
+) DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci;
+
 EOT;
 
 		$hash = md5( $sql );
@@ -375,5 +389,6 @@ require_once 'inc/class.member.php';
 require_once 'inc/class.rfid.php';
 require_once 'inc/class.cron.php';
 require_once 'inc/class.stats.php';
+require_once 'inc/class.bucks.php';
 
 require_once 'vendor/autoload.php';

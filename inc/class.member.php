@@ -15,7 +15,6 @@ class dtbaker_member {
 	public $detail_fields = array();
 
 	public function init() {
-		add_action( 'admin_menu', array( $this, 'admin_menu' ) );
 		add_action( 'admin_action_member_email', array( $this, 'admin_send_email' ) );
 		add_filter( 'manage_dtbaker_membership_posts_columns', array( $this, 'manage_dtbaker_membership_posts_columns' ) );
 		add_action( 'manage_dtbaker_membership_posts_custom_column', array(
@@ -102,12 +101,6 @@ class dtbaker_member {
 				'eg'    => 'mon8-13|wed9-11 for Monday 8am to 1pm access, plus Wed 9-11am access only.'
 			),
 		) );
-
-	}
-
-	public function admin_menu() {
-
-
 	}
 
 	public function trigger_email( $member_id, $force = false ) {
@@ -362,10 +355,11 @@ class dtbaker_member {
 		//$columns['square_id'] = __( 'Square Contact' );
 		$columns['invoices'] = __( 'Invoices' );
 		//$columns['member_start'] = __( 'Membership Start' );
-		$columns['slack']      = __( 'Slack' );
-		$columns['phone']      = __( 'Phone' );
-		$columns['email']      = __( 'Email' );
-		$columns['member_end'] = __( 'Membership Expiry' );
+		$columns['slack']        = __( 'Slack' );
+		$columns['phone']        = __( 'Phone' );
+		$columns['email']        = __( 'Email' );
+		$columns['member_bucks'] = __( 'Bucks' );
+		$columns['member_end']   = __( 'Membership Expiry' );
 
 		return $columns;
 	}
@@ -436,6 +430,9 @@ class dtbaker_member {
 					}*/
 				}
 				break;
+			case 'member_bucks':
+				TechSpace_Bucks::get_instance()->get_single_member_available_bucks( $post_id );
+				break;
 			default:
 				if ( ! empty( $membership_details[ $column ] ) ) {
 					echo esc_html( $membership_details[ $column ] );
@@ -446,7 +443,6 @@ class dtbaker_member {
 
 		}
 	}
-
 
 	public function get_details( $post_id ) {
 		$detail_fields = array();
@@ -504,6 +500,48 @@ class dtbaker_member {
 				href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin.php?action=member_email&type=checkin-welcome&member_id=' . $post->ID ), 'member_email', 'nonce' ) ); ?>"
 				target="_blank">Send the "Chicken Wifi Password" welcome email</a> <br/>
 
+		</div>
+		<?php
+
+	}
+
+	public function meta_box_bucks_callback( $post ) {
+		?>
+		<div class="dtbaker_member_buck_history">
+			<?php
+			$myListTable = new TechSpaceCustomTable( array(
+				'screen' => 'buck_history'
+			) );
+			global $wpdb;
+			$history = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT * FROM `" . $wpdb->prefix . "ts_buck` WHERE member_id = %d ORDER BY ts_buck DESC LIMIT 20",
+					$post->ID
+				),
+				ARRAY_A
+			);
+			$myListTable->set_columns(
+				array(
+					'timestamp'       => __( 'Time' ),
+					'amount'    => __( 'Amount' ),
+					'comment'    => __( 'Comment' ),
+					'state' => __( 'State' ),
+				)
+			);
+			$myListTable->set_data( $history );
+			$myListTable->set_callback( function ( $item, $column_name ) {
+				switch ( $column_name ) {
+					case 'timestamp':
+						return date( 'Y-m-d H:i:s', $item['timestamp'] );
+					case 'amount':
+						return $item['amount'];
+					case 'state':
+						return $item['state'];
+				}
+			} );
+			$myListTable->prepare_items();
+			$myListTable->display();
+			?>
 		</div>
 		<?php
 
@@ -668,6 +706,14 @@ class dtbaker_member {
 			</div>
 			<?php
 		}
+		?>
+		<div class="dtbaker_member_form_field">
+			<label>Adjust Member Bucks (+ or -)</label>
+			<input type="text" name="member_bucks_adjustment" value="+0"/>
+			Current Bucks is:
+			<strong>$<?php echo TechSpace_Bucks::get_instance()->get_single_member_available_bucks( $post->ID, true ); ?></strong>
+		</div>
+		<?php
 	}
 
 	private function _print_invoice_details( $invoice_id, $invoice ) {
@@ -707,6 +753,14 @@ class dtbaker_member {
 				'dtbaker_membership_page_meta_emails',
 				__( 'Recent Member Emails' ),
 				array( $this, 'meta_box_emails_callback' ),
+				$screen,
+				'normal',
+				'high'
+			);
+			add_meta_box(
+				'dtbaker_membership_page_meta_bucks',
+				__( 'Recent Member Bucks History' ),
+				array( $this, 'meta_box_bucks_callback' ),
 				$screen,
 				'normal',
 				'high'
@@ -775,7 +829,11 @@ class dtbaker_member {
 					update_post_meta( $post_id, 'membership_details_' . $key, $membership_details[ $key ] );
 				}
 			}
+		}
 
+		if(!empty($_POST['member_bucks_adjustment'])){
+			$adjustment = floatval($_POST['member_bucks_adjustment']);
+			TechSpace_Bucks::get_instance()->manually_add_member_bucks( $post_id, $adjustment, 'Manual adjustment' );
 		}
 
 	}
