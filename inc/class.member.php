@@ -509,9 +509,7 @@ class dtbaker_member {
 		?>
 		<div class="dtbaker_member_buck_history">
 			<?php
-			$myListTable = new TechSpaceCustomTable( array(
-				'screen' => 'buck_history'
-			) );
+			$myListTable = new TechSpaceCustomTable();
 			global $wpdb;
 			$history = $wpdb->get_results(
 				$wpdb->prepare(
@@ -544,7 +542,6 @@ class dtbaker_member {
 			?>
 		</div>
 		<?php
-
 	}
 
 	public function meta_box_callback( $post ) {
@@ -763,7 +760,7 @@ class dtbaker_member {
 				array( $this, 'meta_box_bucks_callback' ),
 				$screen,
 				'normal',
-				'high'
+				'low'
 			);
 		}
 
