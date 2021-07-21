@@ -192,6 +192,37 @@ class TechSpace_Square {
 		return isset( $all_invoices[ $contact_id ] ) ? $all_invoices[ $contact_id ] : array();
 	}
 
+	public function get_contact_metadata( $contact_id ) {
+		$square_client = $this->get_square_client();
+
+		$api_response = $square_client->getCustomersApi()->retrieveCustomer( $contact_id );
+
+		$data = [
+			'rfid_codes'     => [],
+			'slack_username' => ''
+		];
+		if ( $api_response->isSuccess() ) {
+			/** @var $result \Square\Models\RetrieveCustomerResponse */
+			$result = $api_response->getResult();
+			$customer = $result->getCustomer();
+			$notes  = explode( "\n", $customer->getNote() );
+			foreach ( $notes as $note ) {
+				$bits = explode( ": ", $note );
+				if(count($bits) === 2) {
+					if ( $bits[0] === "RFID" ) {
+						$data['rfid_codes'][] = trim( $bits[1] );
+					} else if ( $bits[1] === "Slack" ) {
+						$data['slack_username'] = trim( $bits[1] );
+					}
+				}
+			}
+		} else {
+			$errors = $api_response->getErrors();
+		}
+
+		return $data;
+	}
+
 	public function create_contact( $details ) {
 
 		$bits = explode( ' ', $details['name'] );

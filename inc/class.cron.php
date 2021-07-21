@@ -32,6 +32,7 @@ class dtbaker_member_cron {
 	}
 
 	public function server_cron() {
+		$this->import_data_from_square();
 		$this->notify_about_freeloaders();
 		$this->run_cron_job();
 		$this->run_slack_job();
@@ -41,11 +42,50 @@ class dtbaker_member_cron {
 	public function member_cron() {
 		?>
 		<h3>Cron Job:</h3>
+		<pre><?php $this->import_data_from_square( true ); ?></pre>
 		<pre><?php $this->notify_about_freeloaders( true ); ?></pre>
 		<pre><?php $this->run_cron_job( true ); ?></pre>
 		<pre><?php $this->run_slack_job( true ); ?></pre>
 		<pre><?php $this->invite_paid_members_to_lounge( true ); ?></pre>
 		<?php
+	}
+
+	public function import_data_from_square( $debug = false ) {
+		return; // TODO:
+		$member_manager = dtbaker_member::get_instance();
+
+		// loop over all members.
+		$members = get_posts( array(
+			'post_type'      => 'dtbaker_membership',
+			'post_status'    => 'publish',
+			'posts_per_page' => - 1,
+		) );
+		ini_set( 'display_errors', true );
+		ini_set( 'error_reporting', E_ALL );
+
+		foreach ( $members as $member ) {
+			$membership_details = $member_manager->get_details( $member->ID );
+			if ( ! empty( $membership_details['square_id'] ) ) {
+
+				if ( $debug ) {
+					echo "\n\nImporting square data for member (" . $member->ID . ") " . $member->post_title . "\n";
+				}
+
+				$square_manual_data = TechSpace_Square::get_instance()->get_contact_metadata( $membership_details['square_id'] );
+				if ( $square_manual_data['slack_username'] ) {
+					if ( $debug ) {
+						echo "\n - got slack username " . $square_manual_data['slack_username'] . " \n";
+					}
+					// todo write to member field
+				}
+				if ( ! empty( $square_manual_data['rfid_codes'] ) ) {
+					if ( $debug ) {
+						echo "\n - got rfid codes: " . implode( ", ", $square_manual_data['rfid_codes'] ) . " \n";
+					}
+					// todo write to member field
+				}
+			}
+		}
 	}
 
 	public function run_slack_job( $debug = false ) {
@@ -365,7 +405,7 @@ class dtbaker_member_cron {
 						echo " - Found a $" . $invoice['total'] . " paid invoice (paid on " . date( 'Y-m-d', $invoice['paid_time'] ) . "): $invoice_id \n";
 						// check how many days this invoice payment will get the user.
 						foreach ( $member_types as $member_type ) {
-							if ( $member_type['price'] && floor($member_type['price']/100) === floor($invoice['total']) ) {
+							if ( $member_type['price'] && floor( $member_type['price'] / 100 ) === floor( $invoice['total'] ) ) {
 								if ( $debug ) {
 									echo " -- this invoice is for membership type: " . $member_type['name'] . " for " . $member_type['months'] . " months. \n";
 								}
@@ -427,11 +467,11 @@ class dtbaker_member_cron {
 						echo " --- Generating a new invoice for this renewal! \n";
 					}
 
-					if(!$membership_details['square_id']){
+					if ( ! $membership_details['square_id'] ) {
 						if ( $debug ) {
 							echo " --- no square contact assigned, unable to generate invoice! \n";
 						}
-					}else {
+					} else {
 						// what membership type do they have.
 						$current_member_types = wp_get_post_terms( $member->ID, 'dtbaker_membership_type' );
 						foreach ( $current_member_types as $current_member_type ) {
@@ -458,16 +498,16 @@ class dtbaker_member_cron {
 											if ( $debug ) {
 												echo "\nwanting to create a " . ( $member_type['price'] / 100 ) . " invoice for this member \n";
 											}
-//										$new_invoice_id = TechSpace_Square::get_instance()->create_invoice($member->ID, $membership_details['square_id'], [
-//											'name' => $member_type['name'],
-//											'money' => $member_type['price'],
-//											'due_date'    => date( 'Y-m-d' ),
-//										]);
-//										if ( $new_invoice_id ) {
-//											$this->send_notification( "New Invoice for " . $member->post_title . ' generated in Square (' . $member_type['months'] . " months). \n https://squareup.com/dashboard/invoices/$new_invoice_id ", 'moneybag', $member->ID );
-//										} else {
-//											$this->send_notification( "Error: Failed to make invoice in Square for " . $member->post_title . ' - not sure why - check with dave?', 'moneybag', $member->ID );
-//										}
+											//										$new_invoice_id = TechSpace_Square::get_instance()->create_invoice($member->ID, $membership_details['square_id'], [
+											//											'name' => $member_type['name'],
+											//											'money' => $member_type['price'],
+											//											'due_date'    => date( 'Y-m-d' ),
+											//										]);
+											//										if ( $new_invoice_id ) {
+											//											$this->send_notification( "New Invoice for " . $member->post_title . ' generated in Square (' . $member_type['months'] . " months). \n https://squareup.com/dashboard/invoices/$new_invoice_id ", 'moneybag', $member->ID );
+											//										} else {
+											//											$this->send_notification( "Error: Failed to make invoice in Square for " . $member->post_title . ' - not sure why - check with dave?', 'moneybag', $member->ID );
+											//										}
 										}
 									}
 								}
