@@ -225,8 +225,8 @@ class TechSpace_Frontend_Submit {
 	public function membership_signup_form( $atts = array() ) {
 		ob_start();
 		?>
-		<form method="post" action="" class="techspace_signup">
-			<input type="hidden" name="techspace_member_submit" value="true">
+		<form method="post" action="" class="techspace_signup" id="techspace_signup_form">
+			<input type="hidden" name="techspace_member_submit" id="techspace_member_submit" value="">
 			<?php wp_nonce_field( 'techspace_submit_member', 'techspace_submit' ); ?>
 
 			<div class="membership_form_element"><label for="your_name">Your Name:</label><br/>
@@ -271,9 +271,30 @@ class TechSpace_Frontend_Submit {
 				<textarea id="member_comments" rows="7" cols="80" name="member_comments"></textarea>
 			</div>
 
+			<div class="membership_form_element"><label for="recaptcha_answer">Answer this puzzle:</label><br/>
+				<p>What is the value of this resistor in ohms? hint: it's between 60 and 70:</p>
+				<img src="https://gctechspace.org/wp-content/uploads/2021/07/resistor-quiz.png" />
+				<br/>
+				Answer: <input id="recaptcha_answer" value=""/>
+			</div>
 
-			<div class="membership_form_element"><input type="submit" value="Submit" tabindex="6" id="submit" name="submit"
-			                                            onclick="var t = this; setTimeout(function(){ t.disabled=true; t.value='Loading please wait....';}, 30); return true;"/>
+			<script>
+				function super_dooper_unhackable_sophisticated_recaptcha(button) {
+				  var answer = document.getElementById('recaptcha_answer').value;
+				  if(answer !== '62'){
+				    alert('Sorry please enter the correct answer to the puzzle');
+				    return false;
+				  }
+          document.getElementById('techspace_member_submit').value = 'true';
+          setTimeout(function(){ button.value='Loading please wait....';}, 30);
+          document.getElementById('techspace_signup_form').submit();
+				  return true;
+				}
+			</script>
+
+
+			<div class="membership_form_element">
+				<input type="button" value="Submit" tabindex="6" onclick="super_dooper_unhackable_sophisticated_recaptcha(this)">
 			</div>
 
 		</form>
