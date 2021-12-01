@@ -199,7 +199,7 @@ class TechSpace_Square {
 
 		$data = [
 			'rfid_codes'     => [],
-			'slack_username' => ''
+			'slackid' => ''
 		];
 		if ( $api_response->isSuccess() ) {
 			/** @var $result \Square\Models\RetrieveCustomerResponse */
@@ -211,8 +211,8 @@ class TechSpace_Square {
 				if(count($bits) === 2) {
 					if ( $bits[0] === "RFID" ) {
 						$data['rfid_codes'][] = trim( $bits[1] );
-					} else if ( $bits[1] === "Slack" ) {
-						$data['slack_username'] = trim( $bits[1] );
+					} else if ( $bits[0] === "Slack" ) {
+						$data['slackid'] = trim( $bits[1] );
 					}
 				}
 			}

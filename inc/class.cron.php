@@ -51,7 +51,6 @@ class dtbaker_member_cron {
 	}
 
 	public function import_data_from_square( $debug = false ) {
-		return; // TODO:
 		$member_manager = dtbaker_member::get_instance();
 
 		// loop over all members.
@@ -72,11 +71,12 @@ class dtbaker_member_cron {
 				}
 
 				$square_manual_data = TechSpace_Square::get_instance()->get_contact_metadata( $membership_details['square_id'] );
-				if ( $square_manual_data['slack_username'] ) {
+				if ( $square_manual_data['slackid'] ) {
 					if ( $debug ) {
-						echo "\n - got slack username " . $square_manual_data['slack_username'] . " \n";
+						echo "\n - got slackid " . $square_manual_data['slackid'] . " \n";
+						$existing_slackid = get_post_meta( $member->ID, 'membership_details_' . 'slackid', true );
 					}
-					// todo write to member field
+					update_post_meta( $member->ID, 'membership_details_' . 'slackid', $square_manual_data['slackid'] );
 				}
 				if ( ! empty( $square_manual_data['rfid_codes'] ) ) {
 					if ( $debug ) {
@@ -86,6 +86,7 @@ class dtbaker_member_cron {
 				}
 			}
 		}
+		exit;
 	}
 
 	public function run_slack_job( $debug = false ) {

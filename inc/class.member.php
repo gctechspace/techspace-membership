@@ -77,6 +77,11 @@ class dtbaker_member {
 				'type'  => 'text',
 				'eg'    => 'What is your gctechspace.org Slack username?'
 			),
+			'slackid'          => array(
+				'title' => 'Slack ID',
+				'type'  => 'text'
+			),
+			'postcode'       => 'Post Code',
 			'linkedin'       => 'LinkedIn',
 			'notifications'  => array(
 				'title'   => 'Notifications',
