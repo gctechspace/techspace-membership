@@ -134,11 +134,12 @@ class TechSpace_Square {
 		$body_query            = new \Square\Models\InvoiceQuery(
 			$body_query_filter
 		);
-		$body_query_sort_field = 'INVOICE_SORT_DATE';
-		$body_query->setSort( new \Square\Models\InvoiceSort(
-			$body_query_sort_field
-		) );
-		$body_query->getSort()->setOrder( \Square\Models\SortOrder::DESC );
+
+		$sort = new \Square\Models\InvoiceSort('INVOICE_SORT_DATE');
+		$sort->setField(\Square\Models\InvoiceSortField::INVOICE_SORT_DATE);
+		$sort->setOrder('DESC');
+		$body_query->setSort($sort);
+
 		$body = new \Square\Models\SearchInvoicesRequest(
 			$body_query
 		);

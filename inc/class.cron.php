@@ -82,7 +82,38 @@ class dtbaker_member_cron {
 					if ( $debug ) {
 						echo "\n - got rfid codes: " . implode( ", ", $square_manual_data['rfid_codes'] ) . " \n";
 					}
-					// todo write to member field
+					$rfid_keys = get_posts( array(
+						'post_type'   => 'dtbaker_rfid',
+						'post_status' => 'publish',
+						'meta_key'    => 'rfid_details_member_id',
+						'meta_value'  => $member->ID,
+					) );
+					$existing_rfid_keys = [];
+					if ( $rfid_keys ) {
+						foreach ( $rfid_keys as $rfid_key ) {
+							$existing_rfid_keys[] = $rfid_key->post_title;
+						}
+					}
+					echo " - existing keys are: " . implode(", ",$existing_rfid_keys) . "\n";
+					foreach( $square_manual_data['rfid_codes'] as $square_rfid_key ){
+						if( ! in_array( $square_rfid_key, $existing_rfid_keys ) ) {
+							if ( $debug ) {
+								echo " - adding new key: '" . $square_rfid_key . "' \n";
+							}
+							$valid_rfid = wp_insert_post(array(
+								'post_title' => $square_rfid_key,
+								'post_type' => 'dtbaker_rfid',
+								'post_status' => 'publish',
+								'post_content' => 'Inserted by square import',
+							));
+							update_post_meta( $valid_rfid, 'rfid_details_member_id', $member->ID);
+
+						}else{
+							if ( $debug ) {
+								echo " - existing key: '" . $square_rfid_key . "' \n";
+							}
+						}
+					}
 				}
 			}
 		}

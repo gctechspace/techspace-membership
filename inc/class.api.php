@@ -30,8 +30,9 @@ class TechSpace_API_Endpoint{
 	 *	@return void
 	 */
 	public function add_endpoint(){
-		add_rewrite_rule('^api/rfid/?([0-9]+)?/?([a-zA-Z0-9-]+)?/?','index.php?__api=1&rfid=$matches[1]&access=$matches[2]','top');
-		add_rewrite_rule('^api/doors/?([a-zA-Z0-9-]+)?/?','index.php?__api=1&doors=$matches[1]','top');
+//		add_rewrite_rule('^api/rfid/?([0-9]+)?/?([a-zA-Z0-9-]+)?/?','index.php?__api=1&rfid=$matches[1]&access=$matches[2]','top');
+//		add_rewrite_rule('^api/doors/?([a-zA-Z0-9-]+)?/?','index.php?__api=1&doors=$matches[1]','top');
+		add_rewrite_rule('^api/all-members/?','index.php?__api=1&doors=get-all-members','top');
 	}
 	/**	Sniff Requests
 	 *	This is where we hijack all API requests
@@ -42,17 +43,15 @@ class TechSpace_API_Endpoint{
 		global $wp;
 		if(isset($wp->query_vars['__api'])){
 			if(!empty($_POST['secret']) && $_POST['secret'] == get_option( 'techspace_membership_api_secret' )){
-				if(!empty($wp->query_vars['access']) && $wp->query_vars['access'] == 'wifipassword') {
+				if(!empty($wp->query_vars['doors']) && $wp->query_vars['doors'] === 'get-all-members') {
+					$this->handle_all();
+				}else if(!empty($wp->query_vars['access']) && $wp->query_vars['access'] == 'wifipassword') {
 					// $wp->query_vars['getwifi']
 					//getting wifi password from chicken.
 					$wifipassword = get_option( 'techspace_membership_wifi_password' );
 					$this->send_response($wifipassword);
-
 				}else if(!empty($wp->query_vars['doors'])){
 					$this->handle_door_status();
-				}else if(empty($wp->query_vars['rfid']) && !empty($wp->query_vars['access']) && $wp->query_vars['access'] == 'all'){
-					// handle the ALL api request. /api/rfid/all
-					$this->handle_all();
 				}else if($wp->query_vars['access'] == 'signup'){
 					$this->handle_signup();
 				}else{
@@ -471,16 +470,31 @@ class TechSpace_API_Endpoint{
 			$access[$term->slug] = $term->name;
 		}
 		$return = array(
-			'member_id' => $member_id,
-			'member_name' => get_the_title($member_id),
-			'member_email' => strtolower($member_details['email']),
+			'id' => $member_id,
+			'name' => get_the_title($member_id),
+			'email' => strtolower($member_details['email']),
 			'membership_expiry_days' => $member_details['expiry_days'],
+			'tags' => [],
+			'paid' => $member_details['expiry_days'] > 1,
 			'rfid' => $rfid_codes,
-			'access' => $access,
+			'permissions' => $access,
 			'valid_times' => $member_details['valid_times'],
-			'slack' => $member_details['slack'],
+			'slack_username' => $member_details['slack'],
+			'slack_userid' => $member_details['slackid'],
+			'postcode' => $member_details['postcode'],
 			'questions' => array(),
 		);
+//		$return = array(
+//			'member_id' => $member_id,
+//			'member_name' => get_the_title($member_id),
+//			'member_email' => strtolower($member_details['email']),
+//			'membership_expiry_days' => $member_details['expiry_days'],
+//			'rfid' => $rfid_codes,
+//			'access' => $access,
+//			'valid_times' => $member_details['valid_times'],
+//			'slack' => $member_details['slack'],
+//			'questions' => array(),
+//		);
 
 		if(empty($member_details['slack'])){
 			$return['questions']['slack'] = array(

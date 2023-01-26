@@ -631,13 +631,13 @@ class dtbaker_member {
 										<option value="">Please select</option>
 										<?php
 										$line_items = TechSpace_Cpt::get_instance()->get_member_types();
-										foreach ( $line_items as $line_item_id => $line_item ) {
-											?>
-											<option
-												value="<?php echo $line_item_id; ?>"><?php echo $line_item['name'] . ' $' . floor( $line_item['price'] / 100 ); ?></option>
-											<?php
-										}
-										?>
+										foreach ( $line_items as $line_item_id => $line_item ) { ?>
+											<option value="<?php echo $line_item_id; ?>">
+												<?php echo $line_item['name']; ?>
+												<?php if( $line_item['price'] ){ ?>
+													<?php echo ' $' . floor( $line_item['price'] / 100 ); ?></option>
+												<?php } ?>
+										<?php } ?>
 									</select>
 								</div>
 								<div class="dtbaker_member_form_field">
