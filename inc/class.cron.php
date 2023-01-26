@@ -75,6 +75,9 @@ class dtbaker_member_cron {
 					if ( $debug ) {
 						echo "\n - got slackid " . $square_manual_data['slackid'] . " \n";
 						$existing_slackid = get_post_meta( $member->ID, 'membership_details_' . 'slackid', true );
+						if($existing_slackid){
+							echo " - changing from old value of '" . $existing_slackid . "' \n";
+						}
 					}
 					update_post_meta( $member->ID, 'membership_details_' . 'slackid', $square_manual_data['slackid'] );
 				}
@@ -117,7 +120,6 @@ class dtbaker_member_cron {
 				}
 			}
 		}
-		exit;
 	}
 
 	public function run_slack_job( $debug = false ) {
@@ -530,16 +532,16 @@ class dtbaker_member_cron {
 											if ( $debug ) {
 												echo "\nwanting to create a " . ( $member_type['price'] / 100 ) . " invoice for this member \n";
 											}
-											//										$new_invoice_id = TechSpace_Square::get_instance()->create_invoice($member->ID, $membership_details['square_id'], [
-											//											'name' => $member_type['name'],
-											//											'money' => $member_type['price'],
-											//											'due_date'    => date( 'Y-m-d' ),
-											//										]);
-											//										if ( $new_invoice_id ) {
-											//											$this->send_notification( "New Invoice for " . $member->post_title . ' generated in Square (' . $member_type['months'] . " months). \n https://squareup.com/dashboard/invoices/$new_invoice_id ", 'moneybag', $member->ID );
-											//										} else {
-											//											$this->send_notification( "Error: Failed to make invoice in Square for " . $member->post_title . ' - not sure why - check with dave?', 'moneybag', $member->ID );
-											//										}
+											$new_invoice_id = TechSpace_Square::get_instance()->create_invoice($member->ID, $membership_details['square_id'], [
+												'name' => $member_type['name'],
+												'money' => $member_type['price'],
+												'due_date'    => date( 'Y-m-d' ),
+											]);
+											if ( $new_invoice_id ) {
+												$this->send_notification( "New Invoice for " . $member->post_title . ' generated in Square (' . $member_type['months'] . " months). \n https://squareup.com/dashboard/invoices/$new_invoice_id ", 'moneybag', $member->ID );
+											} else {
+												$this->send_notification( "Error: Failed to make invoice in Square for " . $member->post_title . ' - not sure why - check with dave?', 'moneybag', $member->ID );
+											}
 										}
 									}
 								}
