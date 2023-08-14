@@ -529,13 +529,16 @@ class dtbaker_member_cron {
 											$this->send_notification( "TODO: Please manually create a new invoice for " . $member->post_title . ' (' . $member_type['months'] . " months). \n Not automatically creating due to member settings.", 'moneybag', $member->ID );
 										} else {
 
+											$member_end_timestamp = strtotime(date( 'Y-m-d', $membership_details['member_end'] ));
+											$now = time();
+											$invoice_due_date = date('Y-m-d', max($now, $member_end_timestamp));
 											if ( $debug ) {
-												echo "\nwanting to create a " . ( $member_type['price'] / 100 ) . " invoice for this member \n";
+												echo "\nwanting to create a " . ( $member_type['price'] / 100 ) . " invoice for this member due on " . date( 'Y-m-d', $membership_details['member_end'] ) . " (really: ' . $invoice_due_date. ')\n";
 											}
 											$new_invoice_id = TechSpace_Square::get_instance()->create_invoice($member->ID, $membership_details['square_id'], [
 												'name' => $member_type['name'],
 												'money' => $member_type['price'],
-												'due_date'    => date( 'Y-m-d' ),
+												'due_date'    => $invoice_due_date,
 											]);
 											if ( $new_invoice_id ) {
 												$this->send_notification( "New Invoice for " . $member->post_title . ' generated in Square (' . $member_type['months'] . " months). \n https://squareup.com/dashboard/invoices/$new_invoice_id ", 'moneybag', $member->ID );
