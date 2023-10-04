@@ -30,198 +30,230 @@ class TechSpace_Frontend_Submit {
 	);
 
 	public function handle_submit() {
+		try {
 
-		if ( ! empty( $_POST ) && ! empty( $_POST['techspace_member_update'] ) && wp_verify_nonce( $_POST['techspace_submit'], 'techspace_update_member' ) ) {
+			if ( ! empty( $_POST ) && ! empty( $_POST['techspace_member_update'] ) && wp_verify_nonce( $_POST['techspace_submit'], 'techspace_update_member' ) ) {
 
 
-			$hash = $_GET['hash'];
-			$bits = explode( '.', $hash );
-			if ( count( $bits ) !== 3 ) {
-				die( '(link error )' );
-			}
-			$member_id = (int) $bits[0];
-			$time      = (int) $bits[1];
-			$hashcheck = $bits[2];
-
-			$correct_hash = md5( "Techspace " . AUTH_KEY . " Membership Link for member $member_id at timestamp $time " );
-
-			if ( $correct_hash !== $hashcheck ) {
-				die( '(link error )' );
-			}
-
-			if ( time() > $time ) {
-				die( '(expire error )' );
-			}
-
-			$title = '';
-			if ( ! empty ( $_POST['your_name'] ) ) {
-				$title = trim( wp_strip_all_tags( $_POST['your_name'] ) );
-			}
-			$details = array();
-			foreach ( $this->update_details as $key => $val ) {
-				// format date fields as timestamps for easier querying.
-				if ( ! empty( $_POST[ $key ] ) ) {
-					if ( $key == 'email' ) {
-						$valid_email = filter_var( trim( $_POST[ $key ] ), FILTER_VALIDATE_EMAIL );
-						if ( $valid_email ) {
-							$details[ $key ] = $valid_email;
-						}
-					} else {
-						$details[ $key ] = wp_strip_all_tags( $_POST[ $key ] );
-					}
+				$hash = $_GET['hash'];
+				$bits = explode( '.', $hash );
+				if ( count( $bits ) !== 3 ) {
+					throw new Exception( '(link error )' );
 				}
-			}
+				$member_id = (int) $bits[0];
+				$time      = (int) $bits[1];
+				$hashcheck = $bits[2];
 
-			$post_data = array(
-				'ID' => $member_id,
-			);
+				$correct_hash = md5( "Techspace " . AUTH_KEY . " Membership Link for member $member_id at timestamp $time " );
 
-			if ( strlen( trim( $title ) ) ) {
-				$post_data['post_title'] = trim( $title );
-				wp_update_post( $post_data );
-			}
-
-			$membership_category      = 0;
-			$membership_category_name = 0;
-			$available_categories     = get_terms( 'dtbaker_membership_type', array(
-				'hide_empty' => false,
-			) );
-			foreach ( $available_categories as $available_category ) {
-				if ( $available_category->term_id == $_POST['membership_category'] ) {
-					$membership_category      = $available_category->term_id;
-					$membership_category_name = $available_category->name;
+				if ( $correct_hash !== $hashcheck ) {
+					throw new Exception( '(link hash error )' );
 				}
-			}
 
-			wp_set_object_terms( $member_id, $membership_category, 'dtbaker_membership_type' );
-
-			//print_r($post);print_r($details);exit;
-			foreach ( $details as $key => $val ) {
-				// format date fields as timestamps for easier querying.
-				if ( $val ) {
-					update_post_meta( $member_id, 'membership_details_' . $key, $val );
+				if ( time() > $time ) {
+					throw new Exception( '(expire error )' );
 				}
-			}
-			// use the cron class to send slack notification.
-			$cron              = dtbaker_member_cron::get_instance();
-			$notification_text = 'Member "' . get_the_title( $member_id ) . '" just updated their details and has chosen a membership level of: "' . $membership_category_name . '"';
-			if ( ! empty( $_POST['member_comments'] ) ) {
-				$notification_text .= "\nThe member left some comments/suggestions: " . $_POST['member_comments'];
-			}
-			$cron->send_notification( $notification_text, 'memo' );
-			wp_mail( "dtbaker@gmail.com", "TechSpace Membership Update (" . get_the_title( $member_id ) . ")", "Member update : $title. Link: " . get_edit_post_link( $member_id ) . ' ' . var_export( $_POST, true ) );
 
-
-			wp_redirect( 'https://gctechspace.org/members/your-details/?updated' );
-			exit;
-
-		}
-		if ( ! empty( $_POST ) && ! empty( $_POST['techspace_member_submit'] ) && wp_verify_nonce( $_POST['techspace_submit'], 'techspace_submit_member' ) ) {
-
-			// Do some minor form validation to make sure there is content
-			$title = '';
-			if ( isset ( $_POST['your_name'] ) ) {
-				$title = trim( wp_strip_all_tags( $_POST['your_name'] ) );
-			}
-			if ( ! $title ) {
-				echo 'Please go back and enter your name.';
-				exit;
-			}
-
-			$details = $this->details;
-			foreach ( $details as $key => $val ) {
-				// format date fields as timestamps for easier querying.
-				if ( ! empty( $_POST[ $key ] ) ) {
-					if ( $key == 'email' ) {
-						$valid_email = filter_var( trim( $_POST[ $key ] ), FILTER_VALIDATE_EMAIL );
-						if ( $valid_email ) {
-							$details[ $key ] = $valid_email;
+				$title = '';
+				if ( ! empty ( $_POST['your_name'] ) ) {
+					$title = trim( wp_strip_all_tags( $_POST['your_name'] ) );
+				}
+				$details = array();
+				foreach ( $this->update_details as $key => $val ) {
+					// format date fields as timestamps for easier querying.
+					if ( ! empty( $_POST[ $key ] ) ) {
+						if ( $key == 'email' ) {
+							$valid_email = filter_var( trim( $_POST[ $key ] ), FILTER_VALIDATE_EMAIL );
+							if ( $valid_email ) {
+								$details[ $key ] = $valid_email;
+							}
 						} else {
-							echo 'Please go back and enter a valid email';
-							exit;
+							$details[ $key ] = wp_strip_all_tags( $_POST[ $key ] );
 						}
-					} else {
-						$details[ $key ] = wp_strip_all_tags( $_POST[ $key ] );
 					}
-				} else {
-					echo 'Please go back and enter all fields.';
-					exit;
 				}
-			}
 
-			$member_types                       = TechSpace_Cpt::get_instance()->get_member_types();
-			$membership_category                = 0;
-			$membership_category_name           = 0;
-			$membership_category_price          = 0;
-			$membership_category_square_enabled = false;
-			foreach ( $member_types as $member_type ) {
-				if ( $member_type['term_id'] == $_POST['membership_category'] ) {
-					$membership_category                = $member_type['term_id'];
-					$membership_category_name           = $member_type['name'];
-					$membership_category_price          = $member_type['price'];
-					$membership_category_square_enabled = $member_type['square_invoices'];
+				$post_data = array(
+					'ID' => $member_id,
+				);
+
+				if ( strlen( trim( $title ) ) ) {
+					$post_data['post_title'] = trim( $title );
+					wp_update_post( $post_data );
 				}
-			}
 
-			// Add the content of the form to $post as an array
-			$post    = array(
-				'post_title'   => wp_strip_all_tags( $title ),
-				'post_content' => "$membership_category_name Signup from website. IP Address: " . $_SERVER['REMOTE_ADDR'] . "\n\n\n" . wp_strip_all_tags( isset( $_POST['member_comments'] ) ? $_POST['member_comments'] : '' ),
-				'post_status'  => 'draft',            // Choose: publish, preview, future, etc.
-				'post_type'    => 'dtbaker_membership'  // Use a custom post type if you want to
-			);
-			$post_id = wp_insert_post( $post );  // http://codex.wordpress.org/Function_Reference/wp_insert_post
+				$membership_category      = 0;
+				$membership_category_name = 0;
+				$available_categories     = get_terms( 'dtbaker_membership_type', array(
+					'hide_empty' => false,
+				) );
+				foreach ( $available_categories as $available_category ) {
+					if ( $available_category->term_id == $_POST['membership_category'] ) {
+						$membership_category      = $available_category->term_id;
+						$membership_category_name = $available_category->name;
+					}
+				}
 
-			if ( $post_id ) {
-				wp_set_object_terms( $post_id, $membership_category, 'dtbaker_membership_type' );
+				wp_set_object_terms( $member_id, $membership_category, 'dtbaker_membership_type' );
 
-				// use the cron class to send slack notification.
-				$cron = dtbaker_member_cron::get_instance();
-
+				//print_r($post);print_r($details);exit;
 				foreach ( $details as $key => $val ) {
 					// format date fields as timestamps for easier querying.
 					if ( $val ) {
-						update_post_meta( $post_id, 'membership_details_' . $key, $val );
+						update_post_meta( $member_id, 'membership_details_' . $key, $val );
+					}
+				}
+				// use the cron class to send slack notification.
+				$cron              = dtbaker_member_cron::get_instance();
+				$notification_text = 'Member "' . get_the_title( $member_id ) . '" just updated their details and has chosen a membership level of: "' . $membership_category_name . '"';
+				if ( ! empty( $_POST['member_comments'] ) ) {
+					$notification_text .= "\nThe member left some comments/suggestions: " . $_POST['member_comments'];
+				}
+				$cron->send_notification( $notification_text, 'memo' );
+				wp_mail( "dtbaker@gmail.com", "TechSpace Membership Update (" . get_the_title( $member_id ) . ")", "Member update : $title. Link: " . get_edit_post_link( $member_id ) . ' ' . var_export( $_POST, true ) );
+
+
+				wp_redirect( 'https://gctechspace.org/members/your-details/?updated' );
+				exit;
+
+			}
+			if ( ! empty( $_POST ) && ! empty( $_POST['techspace_member_submit'] ) && wp_verify_nonce( $_POST['techspace_submit'], 'techspace_submit_member' ) ) {
+
+				$errors_for_user = [];
+				// Do some minor form validation to make sure there is content
+				$title = '';
+				if ( isset ( $_POST['your_name'] ) ) {
+					$title = trim( wp_strip_all_tags( $_POST['your_name'] ) );
+				}
+				if ( ! $title ) {
+					$errors_for_user[] = 'Please enter your name.';
+				}
+				if ( ! $_POST['membership_category'] ) {
+					$errors_for_user[] = 'Please select a membership type.';
+				}
+
+				$details = $this->details;
+				foreach ( $details as $key => $val ) {
+					// format date fields as timestamps for easier querying.
+					if ( ! empty( $_POST[ $key ] ) ) {
+						if ( $key == 'email' ) {
+							$valid_email = filter_var( trim( $_POST[ $key ] ), FILTER_VALIDATE_EMAIL );
+							if ( $valid_email ) {
+								$details[ $key ] = $valid_email;
+							} else {
+								$errors_for_user[] = 'Please enter a valid email.';
+							}
+						} else {
+							$details[ $key ] = wp_strip_all_tags( $_POST[ $key ] );
+						}
+					} else {
+						$errors_for_user[] = 'Please ensure all fields are filled in.';
 					}
 				}
 
-				$new_square_contact_id = TechSpace_Square::get_instance()->create_contact( array(
-					'name'  => wp_strip_all_tags( $title ),
-					'email' => $details['email'],
-					//'phone' => $details['phone'],
-				) );
+				// check if existing member first:
+				$existing_member_check_args = array(
+					'posts_per_page'   => 2,
+					'meta_query' => array(
+						array(
+							'key'     => 'membership_details_email',
+							'value'   => $details['email'],
+							'compare' => '=',
+						),
+					),
+				);
 
-				if ( $new_square_contact_id ) {
-					update_post_meta( $post_id, 'membership_details_square_id', $new_square_contact_id );
+				$existing_members = get_posts( $existing_member_check_args );
+				if(count($existing_members)>0){
+					$errors_for_user[] = 'Your email address already exists in our membership system. Please contact us for help with membership.';
+				}
 
-					if ( $membership_category && $membership_category_square_enabled ) {
-						$new_invoice_id = TechSpace_Square::get_instance()->create_invoice( $post_id, $new_square_contact_id, [
-							'name'     => $membership_category_name,
-							'money'    => $membership_category_price,
-							'due_date' => date( 'Y-m-d' ),
-						] );
-						if ( $new_invoice_id ) {
-							$cron->send_notification( 'New member signed up on the website: "' . $title . '" for "' . $membership_category_name . '".\n An invoice has been automatically generated for this member:\n https://squareup.com/dashboard/invoices/' . $new_invoice_id, 'memo', $post_id );
-						} else {
-							$cron->send_notification( "Error: Failed to make invoice in Square for new member " . $title . ' - not sure why - check with dave?', 'moneybag', $post_id );
-						}
-					}else{
-						$cron->send_notification( 'New free member signed up on the website: "' . $title . '" for "' . $membership_category_name . '".', 'memo', $post_id );
-					}
-				} else {
-					$cron->send_notification( "Error: Failed to create a square contact for new signed up member " . $title . ' - not sure why :( ', 'moneybag', $post_id );
-					echo 'Sorry failed to create account, please contact support';
+				if ( $errors_for_user ) {
+					echo '<h2>Error</h2>';
+					echo implode( $errors_for_user, '<br/>' );
+					echo '<br/> Please <strong>Go Back</strong> and try again.';
 					exit;
 				}
 
-				wp_mail( "dtbaker@gmail.com", "TechSpace Membership Signup ($title)", "Member signup: $title. Type: $membership_category_name Square: $new_square_contact_id  Link: " . get_edit_post_link( $post_id ) );
-			}
+				$member_types                       = TechSpace_Cpt::get_instance()->get_member_types();
+				$membership_category                = 0;
+				$membership_category_name           = 0;
+				$membership_category_price          = 0;
+				$membership_category_square_enabled = false;
+				foreach ( $member_types as $member_type ) {
+					if ( $member_type['term_id'] == $_POST['membership_category'] ) {
+						$membership_category                = $member_type['term_id'];
+						$membership_category_name           = $member_type['name'];
+						$membership_category_price          = $member_type['price'];
+						$membership_category_square_enabled = $member_type['square_invoices'];
+					}
+				}
 
-			$location = get_permalink( get_page_by_title( 'Signup Success' ) );
 
-			echo "<meta http-equiv='refresh' content='0;url=" . esc_url( $location ) . "' />";
+				// Add the content of the form to $post as an array
+				$post    = array(
+					'post_title'   => wp_strip_all_tags( $title ),
+					'post_content' => "$membership_category_name Signup from website. IP Address: " . $_SERVER['REMOTE_ADDR'] . "\n\n\n" . wp_strip_all_tags( isset( $_POST['member_comments'] ) ? $_POST['member_comments'] : '' ),
+					'post_status'  => 'publish',            // Choose: publish, preview, future, etc.
+					'post_type'    => 'dtbaker_membership'  // Use a custom post type if you want to
+				);
+				$post_id = wp_insert_post( $post );  // http://codex.wordpress.org/Function_Reference/wp_insert_post
+
+				if ( $post_id ) {
+					wp_set_object_terms( $post_id, $membership_category, 'dtbaker_membership_type' );
+
+					// use the cron class to send slack notification.
+					$cron = dtbaker_member_cron::get_instance();
+
+					foreach ( $details as $key => $val ) {
+						// format date fields as timestamps for easier querying.
+						if ( $val ) {
+							update_post_meta( $post_id, 'membership_details_' . $key, $val );
+						}
+					}
+
+					$new_square_contact_id = TechSpace_Square::get_instance()->create_contact( array(
+						'name'  => wp_strip_all_tags( $title ),
+						'email' => $details['email'],
+						//'phone' => $details['phone'],
+					) );
+
+					if ( $new_square_contact_id ) {
+						update_post_meta( $post_id, 'membership_details_square_id', $new_square_contact_id );
+
+						if ( $membership_category && $membership_category_square_enabled ) {
+							$new_invoice_id = TechSpace_Square::get_instance()->create_invoice( $post_id, $new_square_contact_id, [
+								'name'     => $membership_category_name,
+								'money'    => $membership_category_price,
+								'due_date' => date( 'Y-m-d' ),
+							] );
+							if ( $new_invoice_id ) {
+								$cron->send_notification( 'New member signed up on the website: "' . $title . '" for "' . $membership_category_name . '".\n An invoice has been automatically generated for this member:\n https://squareup.com/dashboard/invoices/' . $new_invoice_id, 'memo', $post_id );
+							} else {
+								$cron->send_notification( "Error: Failed to make invoice in Square for new member " . $title . ' - not sure why - check with dave?', 'moneybag', $post_id );
+							}
+						} else {
+							$cron->send_notification( 'New free member signed up on the website: "' . $title . '" for "' . $membership_category_name . '".', 'memo', $post_id );
+						}
+					} else {
+						$cron->send_notification( "Error: Failed to create a square contact for new signed up member " . $title . ' - not sure why :( ', 'moneybag', $post_id );
+						echo 'Sorry failed to create account, please contact support';
+						exit;
+					}
+
+					wp_mail( "dtbaker@gmail.com", "TechSpace Membership Signup ($title)", "Member signup: $title. Type: $membership_category_name Square: $new_square_contact_id  Link: " . get_edit_post_link( $post_id ) );
+				}
+
+				$location = get_permalink( get_page_by_title( 'Signup Success' ) );
+
+				echo "<meta http-equiv='refresh' content='0;url=" . esc_url( $location ) . "' />";
+				exit;
+			} // end IF
+		}catch(Exception $e){
+			wp_mail( "dtbaker@gmail.com", "TechSpace Membership Error", var_export($e, true) . var_export($_REQUEST,true));
+			echo "Membership submission error, please go back and try again (or contact us for support).";
 			exit;
-		} // end IF
+		}
 	}
 
 	public function membership_signup_form( $atts = array() ) {
