@@ -235,7 +235,7 @@ class TechSpace_Square {
 		$body->setGivenName( array_shift( $bits ) );
 		$body->setFamilyName( implode( ' ', $bits ) );
 		$body->setEmailAddress( $details['email'] );
-		$body->setPhoneNumber( $details['phone'] );
+		//$body->setPhoneNumber( $details['phone'] );
 		$body->setNote( 'Customer created from WordPress' );
 
 		$apiResponse = $customersApi->createCustomer( $body );

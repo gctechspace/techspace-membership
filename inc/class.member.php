@@ -57,7 +57,7 @@ class dtbaker_member {
 				'title' => 'Member End',
 				'type'  => 'date',
 			),
-			'phone'          => 'Phone Number',
+			//'phone'          => 'Phone Number',
 			'emergency'      => array(
 				'title' => 'Emergency Contact',
 				'type'  => 'text',

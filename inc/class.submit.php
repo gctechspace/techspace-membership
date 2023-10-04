@@ -14,11 +14,13 @@ class TechSpace_Frontend_Submit {
 		add_shortcode( 'membership_update_form', array( $this, 'membership_update_form' ) );
 	}
 
-	public $details = array( 'interests' => '', 'email' => '', 'phone' => '', 'emergency' => '' );
+	public $details = array( 'interests' => '', 'email' => '',
+	                         //'phone' => '',
+	'emergency' => '' );
 	public $update_details = array(
 		'interests' => '',
 		'email'     => '',
-		'phone'     => '',
+		//'phone'     => '',
 		'emergency' => '',
 		'favfood'   => '',
 		'twitter'   => '',
@@ -186,7 +188,7 @@ class TechSpace_Frontend_Submit {
 				$new_square_contact_id = TechSpace_Square::get_instance()->create_contact( array(
 					'name'  => wp_strip_all_tags( $title ),
 					'email' => $details['email'],
-					'phone' => $details['phone'],
+					//'phone' => $details['phone'],
 				) );
 
 				if ( $new_square_contact_id ) {
