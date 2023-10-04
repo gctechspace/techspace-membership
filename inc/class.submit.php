@@ -152,26 +152,29 @@ class TechSpace_Frontend_Submit {
 				}
 
 				// check if existing member first:
-				$existing_member_check_args = array(
-					'posts_per_page'   => 2,
-					'meta_query' => array(
-						array(
-							'key'     => 'membership_details_email',
-							'value'   => $details['email'],
-							'compare' => '=',
+				if(!empty($details['email']) ) {
+					$existing_member_check_args = array(
+						'posts_per_page' => 2,
+						'post_type'      => 'dtbaker_membership',
+						'meta_query'     => array(
+							array(
+								'key'     => 'membership_details_email',
+								'value'   => $details['email'],
+								'compare' => '=',
+							),
 						),
-					),
-				);
+					);
 
-				$existing_members = get_posts( $existing_member_check_args );
-				if(count($existing_members)>0){
-					$errors_for_user[] = 'Your email address already exists in our membership system. Please contact us for help with membership.';
+					$existing_members = get_posts( $existing_member_check_args );
+					if ( count( $existing_members ) > 0 ) {
+						$errors_for_user[] = 'Your email address already exists in our membership system. Please contact us for help with membership.';
+					}
 				}
 
 				if ( $errors_for_user ) {
 					echo '<h2>Error</h2>';
-					echo implode( $errors_for_user, '<br/>' );
-					echo '<br/> Please <strong>Go Back</strong> and try again.';
+					echo implode( '<br/>', $errors_for_user );
+					echo '<br/> <br/> Please <strong>Go Back</strong> and try again.';
 					exit;
 				}
 
